@@ -5,7 +5,7 @@ include(FeatureSummary)
 
 include(GenerateExportHeader)
 
-set(REQUIRED_QT_VERSION 6.5.0)
+set(REQUIRED_QT_VERSION 6.4.0)
 set(CMAKE_AUTORCC TRUE)
 set(CMAKE_AUTOMOC TRUE)
 
