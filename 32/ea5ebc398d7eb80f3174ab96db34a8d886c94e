@@ -1,0 +1,52 @@
+mpd-interface/song.h
+  s_76d2fc9bc87254::t_cb6fb169034362 181-187
+support/llmconfig.cpp
+  s_76d2fc9bc87254::t_805f2bffa0aac8 207-208,210-211
+  s_76d2fc9bc87254::t_cb6fb169034362 27,82-88,95-97
+mpd-interface/song.cpp
+  s_76d2fc9bc87254::t_cb6fb169034362 608,610-612,616,620-624
+support/translationcache.cpp
+  s_76d2fc9bc87254::t_cb6fb169034362 36,81-82,100,116,127,143-157,161
+gui/preferencesdialog.cpp
+  s_76d2fc9bc87254::t_9723fddefa3a02 167
+widgets/translatingtooltip.cpp
+  s_76d2fc9bc87254::t_cb6fb169034362 27,43,76,86-87,90-91,95-100,134-140
+support/llmtranslator.cpp
+  s_76d2fc9bc87254::t_cb6fb169034362 28,78,135,138,144,164,302,532,543
+  s_76d2fc9bc87254::t_9723fddefa3a02 54,166,173,479-480,536,538,558-563
+  s_76d2fc9bc87254::t_805f2bffa0aac8 44-45,86-87,129-130
+gui/translationsettings.cpp
+  s_76d2fc9bc87254::t_9723fddefa3a02 59-73,90-99,101
+support/translationcache.h
+  s_76d2fc9bc87254::t_cb6fb169034362 28,46-48,59-60
+support/llmtranslator.h
+  s_76d2fc9bc87254::t_cb6fb169034362 73-74
+  s_76d2fc9bc87254::t_805f2bffa0aac8 64,133
+  s_76d2fc9bc87254::t_9723fddefa3a02 97,102,109,112,142
+context/artistview.cpp
+  s_76d2fc9bc87254::t_cb6fb169034362 43,112,330-331,337-338,345-349
+gui/translationsettings.h
+  s_76d2fc9bc87254::t_9723fddefa3a02 38-51
+models/playlistsmodel.cpp
+  s_76d2fc9bc87254::t_cb6fb169034362 343-344,348
+context/artistview.h
+  s_76d2fc9bc87254::t_cb6fb169034362 73
+widgets/translatingtooltip.h
+  s_76d2fc9bc87254::t_cb6fb169034362 36-39,46,63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "32ea5ebc398d7eb80f3174ab96db34a8d886c94e",
+  "prompts": {},
+  "sessions": {
+    "s_76d2fc9bc87254": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00c092f0-32a4-4dd8-a84a-a8ee6fcdd4e9",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
