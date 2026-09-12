@@ -1,0 +1,22 @@
+gui/covers.cpp
+  s_76d2fc9bc87254::t_9aa1266b237367 763,775-776,782,805,821,831,839,842-846,849,852,854-858,860-861,863-869,871-884,887-888,890-896,898-899,906,909-913,916-917,919-929,932,935,953,955-957,959-970,975-981,984,1090,1185
+  s_76d2fc9bc87254::t_ab8b9478a5e0db 900-905,907
+gui/covers.h
+  s_76d2fc9bc87254::t_52d8bbabffa6f8 75,99,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "b79d1b93ee5339f505c1a2a4e0aec318c9448018",
+  "prompts": {},
+  "sessions": {
+    "s_76d2fc9bc87254": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00c092f0-32a4-4dd8-a84a-a8ee6fcdd4e9",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
