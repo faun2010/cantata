@@ -3,6 +3,8 @@ build/
 CMakeLists.txt.user
 .cache
 build*/
+/dist/
+/aqtinstall.log
 
 compile_commands.json
 

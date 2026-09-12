@@ -16,8 +16,8 @@ find_package_handle_standard_args(CoreFoundation DEFAULT_MSG CoreFoundation_LIBR
 
 if(CoreFoundation_FOUND)
 	set(CoreFoundation_LIBRARIES ${CoreFoundation_LIBRARY})
-	add_library(CoreFoundation::CoreFoundation UNKNOWN IMPORTED)
+	add_library(CoreFoundation::CoreFoundation INTERFACE IMPORTED)
 	set_target_properties(CoreFoundation::CoreFoundation PROPERTIES
-		IMPORTED_LOCATION "${CoreFoundation_LIBRARY}"
+		INTERFACE_LINK_LIBRARIES "${CoreFoundation_LIBRARY}"
 	)
 endif()

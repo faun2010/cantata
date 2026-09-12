@@ -76,7 +76,7 @@ elseif(APPLE)
 
     # Set default properties for target.
     set(MACOSX_BUNDLE_BUNDLE_NAME ${PROJECT_NAME})
-    set(MACOSX_BUNDLE_VERSION ${PROJECT_VERSION})
+    set(MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION})
     set(MACOSX_BUNDLE_COPYRIGHT "Copyright © 2024 Cantata Contributors.")
 	set(MACOSX_BUNDLE_GUI_IDENTIFIER ${PROJECT_REV_ID})
     set(MACOSX_BUNDLE_EXECUTABLE cantata)
@@ -304,14 +304,17 @@ if(APPLE OR WIN32 OR HAIKU)
     execute_process(
         COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_INSTALL_TRANSLATIONS
         OUTPUT_VARIABLE QT_TRANSLATIONS_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
     )
 
     # Find deployment helpers.
     get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
     if(APPLE)
+        execute_process(COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_INSTALL_PLUGINS
+            OUTPUT_VARIABLE QT_PLUGINS_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
         find_program(
             MACDEPLOYQT_EXECUTABLE
-            "macdeployqt${QT_VERSION_MAJOR}"
+            NAMES macdeployqt "macdeployqt${QT_VERSION_MAJOR}"
             HINTS "${QT_BIN_DIR}"
         )
     endif()
@@ -761,6 +764,7 @@ elseif(APPLE)
         cantata
         PROPERTIES
             MACOSX_BUNDLE TRUE
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/mac/Info.plist.in"
             MACOSX_RPATH TRUE
             OUTPUT_NAME ${MACOSX_BUNDLE_BUNDLE_NAME}
             XCODE_ATTRIBUTE_EXECUTABLE_NAME ${EXECUTABLE_NAME}
@@ -868,12 +872,11 @@ configure_file(config.h.cmake ${CMAKE_BINARY_DIR}/config.h)
 if(APPLE)
     # Using macdeployqt from the official Qt download works.
     # With homebrew, the libraries are more entangled and it doesn't work.
-    install(CODE "execute_process(COMMAND ${MACDEPLOYQT_EXECUTABLE} \"${APPS}\" \"-executable=${APPS}/Contents/MacOS/cantata-replaygain\" \"-executable=${APPS}/Contents/MacOS/cantata-tags\")")
-    #install(CODE "include(BundleUtilities)
-    #	fixup_bundle(\"${APPS}\" \"\" \"${DIRS}\")")
-    #install(CODE "execute_process(COMMAND ${MACDEPLOYQT_EXECUTABLE} \"${APPS}\")")
-    # We still want to codesign it.
-    install(CODE "execute_process(COMMAND codesign -f -s \"-\" \"${APPS}\")")
+    if(NOT MACDEPLOYQT_EXECUTABLE)
+        message(FATAL_ERROR "macdeployqt is required to package the macOS application")
+    endif()
+    configure_file(mac/deploy.cmake.in ${CMAKE_BINARY_DIR}/deploy-macos.cmake @ONLY)
+    install(SCRIPT ${CMAKE_BINARY_DIR}/deploy-macos.cmake)
 endif()
 
 if(WIN32)

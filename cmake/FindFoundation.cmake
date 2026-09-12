@@ -16,8 +16,8 @@ find_package_handle_standard_args(Foundation DEFAULT_MSG Foundation_LIBRARY)
 
 if(Foundation_FOUND)
 	set(Foundation_LIBRARIES ${Foundation_LIBRARY})
-	add_library(Foundation::Foundation UNKNOWN IMPORTED)
+	add_library(Foundation::Foundation INTERFACE IMPORTED)
 	set_target_properties(Foundation::Foundation PROPERTIES
-		IMPORTED_LOCATION "${Foundation_LIBRARY}"
+		INTERFACE_LINK_LIBRARIES "${Foundation_LIBRARY}"
 	)
 endif()

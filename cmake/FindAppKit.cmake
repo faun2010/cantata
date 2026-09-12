@@ -16,8 +16,8 @@ find_package_handle_standard_args(AppKit DEFAULT_MSG AppKit_LIBRARY)
 
 if(AppKit_FOUND)
 	set(AppKit_LIBRARIES ${AppKit_LIBRARY})
-	add_library(AppKit::AppKit UNKNOWN IMPORTED)
+	add_library(AppKit::AppKit INTERFACE IMPORTED)
 	set_target_properties(AppKit::AppKit PROPERTIES
-		IMPORTED_LOCATION "${AppKit_LIBRARY}"
+		INTERFACE_LINK_LIBRARIES "${AppKit_LIBRARY}"
 	)
 endif()

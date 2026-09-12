@@ -16,9 +16,9 @@ find_package_handle_standard_args(IOKit DEFAULT_MSG IOKit_LIBRARY)
 
 if(IOKit_FOUND)
 	set(IOKit_LIBRARIES ${IOKit_LIBRARY})
-	add_library(IOKit::IOKit UNKNOWN IMPORTED)
+	add_library(IOKit::IOKit INTERFACE IMPORTED)
 	set_target_properties(IOKit::IOKit PROPERTIES
-		IMPORTED_LOCATION "${IOKit_LIBRARY}"
+		INTERFACE_LINK_LIBRARIES "${IOKit_LIBRARY}"
 	)
 	target_link_libraries(IOKit::IOKit INTERFACE CoreFoundation::CoreFoundation)
 endif()
