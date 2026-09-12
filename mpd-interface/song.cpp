@@ -408,7 +408,8 @@ void Song::clearKeyStore(int location)
 
 QString Song::displayAlbum(const QString& albumName, quint16 albumYear)
 {
-	return albumYear > 0 ? albumName + QLatin1String(" (") + QString::number(albumYear) + QLatin1Char(')') : albumName;
+	Q_UNUSED(albumYear)
+	return albumName;
 }
 
 static QSet<QString> prefixesToIngore = QSet<QString>() << QLatin1String("The");
