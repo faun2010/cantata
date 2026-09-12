@@ -1,0 +1,21 @@
+gui/translationsettings.cpp
+  s_76d2fc9bc87254::t_f7609e55c28d98 79
+support/llmtranslator.cpp
+  s_76d2fc9bc87254::t_f7609e55c28d98 592,594,596
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "14da2d7936ac49c51cf45d1de38a4c9dc070244e",
+  "prompts": {},
+  "sessions": {
+    "s_76d2fc9bc87254": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00c092f0-32a4-4dd8-a84a-a8ee6fcdd4e9",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
