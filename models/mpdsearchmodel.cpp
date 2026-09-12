@@ -70,20 +70,27 @@ QVariant MpdSearchModel::data(const QModelIndex& index, int role) const
 
 void MpdSearchModel::clear()
 {
-	SearchModel::clear();
 	currentId++;
+	SearchModel::clear();
+	// Cancelled requests are ignored by searchFinished(), so cancellation
+	// itself must finish the view's busy state.
+	emit searched();
 }
 
 void MpdSearchModel::search(const QString& key, const QString& value)
 {
+	if (value.trimmed().isEmpty()) {
+		clear();
+		return;
+	}
 	if (key == currentKey && value == currentValue) {
 		return;
 	}
-	emit searching();
 	clear();
 	currentKey = key;
 	currentValue = value;
 	currentId++;
+	emit searching();
 	emit search(key, value, currentId);
 }
 
