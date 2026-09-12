@@ -39,10 +39,10 @@ static QString parentData(const SqlLibraryModel::Item* i)
 	while (itm->getParent()) {
 		if (!itm->getParent()->getText().isEmpty()) {
 			if (SqlLibraryModel::T_Root == itm->getParent()->getType()) {
-				data = "<b>" + itm->getParent()->getText() + "</b><br/>" + data;
+				data = "<b>" + itm->getParent()->getText().toHtmlEscaped() + "</b><br/>" + data;
 			}
 			else {
-				data = itm->getParent()->getText() + "<br/>" + data;
+				data = itm->getParent()->getText().toHtmlEscaped() + "<br/>" + data;
 			}
 		}
 		itm = itm->getParent();
@@ -435,6 +435,16 @@ QVariant SqlLibraryModel::data(const QModelIndex& index, int role) const
 		}
 		if (T_Track == item->getType()) {
 			return static_cast<TrackItem*>(item)->getSong().toolTip();
+		}
+		if (T_Genre == item->getType() || T_Artist == item->getType() || T_Album == item->getType()) {
+			const QString label = T_Genre == item->getType() ? tr("Genre") : T_Artist == item->getType() ? tr("Artist") : tr("Album");
+			QString details = QStringLiteral("<table><tr><td align=\"right\"><b>%1:&nbsp;&nbsp;</b></td><td>%2</td></tr>").arg(label, item->getText().toHtmlEscaped());
+			if (T_Album == item->getType()) {
+				const AlbumItem* album = static_cast<AlbumItem*>(item);
+				const QString albumArtist = album->getArtistId().isEmpty() ? item->getSubText() : album->getArtistId();
+				if (!albumArtist.isEmpty()) details += QStringLiteral("<tr><td align=\"right\"><b>%1:&nbsp;&nbsp;</b></td><td>%2</td></tr>").arg(tr("Album artist"), albumArtist.toHtmlEscaped());
+			}
+			return details + QStringLiteral("</table><br/>") + parentData(item) + item->getSubText().toHtmlEscaped();
 		}
 		return parentData(item) + (0 == item->getChildCount() ? item->getText() : (item->getText() + "<br/>" + data(index, Cantata::Role_SubText).toString()));
 	case Cantata::Role_TitleSubText:

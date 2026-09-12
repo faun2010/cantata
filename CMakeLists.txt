@@ -505,6 +505,7 @@ target_sources(
         mpd-interface/song.cpp
         mpd-interface/cuefile.cpp
         network/networkaccessmanager.cpp
+        network/translationservice.cpp
         network/networkproxyfactory.cpp
         playlists/dynamicplaylists.cpp
         playlists/playlistproxymodel.cpp

@@ -27,6 +27,7 @@
 #include "gui/covers.h"
 #include "models/mpdlibrarymodel.h"
 #include "network/networkaccessmanager.h"
+#include "network/translationservice.h"
 #include "support/action.h"
 #include "support/actioncollection.h"
 #include "support/utils.h"
@@ -39,6 +40,7 @@
 #include <QMenu>
 #include <QPixmap>
 #include <QTextStream>
+#include <QTextDocument>
 #include <QTimer>
 #include <QUrlQuery>
 #include <QXmlStreamReader>
@@ -104,7 +106,11 @@ ArtistView::ArtistView(QWidget* parent)
 	engine = ContextEngine::create(this);
 	refreshAction = ActionCollection::get()->createAction("refreshartist", tr("Refresh Artist Information"), Icons::self()->refreshIcon);
 	connect(refreshAction, SIGNAL(triggered()), this, SLOT(refresh()));
+	originalTextAction = new QAction(QStringLiteral("显示原文"), this);
+	originalTextAction->setCheckable(true);
+	connect(originalTextAction, &QAction::toggled, this, &ArtistView::setBio);
 	connect(engine, SIGNAL(searchResult(QString, QString)), this, SLOT(searchResponse(QString, QString)));
+	connect(TranslationService::self(), &TranslationService::translationReady, this, &ArtistView::biographyTranslationReady);
 	connect(Covers::self(), SIGNAL(artistImage(Song, QImage, QString)), SLOT(artistImage(Song, QImage, QString)));
 	connect(Covers::self(), SIGNAL(coverUpdated(Song, QImage, QString)), SLOT(artistImageUpdated(Song, QImage, QString)));
 	connect(text, SIGNAL(anchorClicked(QUrl)), SLOT(show(QUrl)));
@@ -128,6 +134,7 @@ void ArtistView::showContextMenu(const QPoint& pos)
 {
 	QMenu* menu = text->createStandardContextMenu();
 	menu->addSeparator();
+	menu->addAction(originalTextAction);
 	if (cancelJobAction->isEnabled()) {
 		menu->addAction(cancelJobAction);
 	}
@@ -181,6 +188,9 @@ void ArtistView::update(const Song& s, bool force)
 		clear();
 		pic.clear();
 		biography.clear();
+		originalBiography.clear();
+		biographySource.clear();
+		biographyTranslationContext.clear();
 		albums.clear();
 		similarArtists = QString();
 		if (!currentSong.isEmpty()) {
@@ -309,7 +319,11 @@ void ArtistView::handleSimilarReply()
 
 void ArtistView::setBio()
 {
-	QString html = pic + "<br>" + biography;
+	if (currentSong.isEmpty()) {
+		clear();
+		return;
+	}
+	QString html = pic + "<br>" + (originalTextAction->isChecked() ? originalBiography : biography);
 	if (!similarArtists.isEmpty()) {
 		html += similarArtists;
 	}
@@ -385,6 +399,17 @@ void ArtistView::abort()
 void ArtistView::searchResponse(const QString& resp, const QString& lang)
 {
 	biography = engine->translateLinks(resp);
+	originalBiography = biography;
+	QTextDocument document;
+	document.setHtml(biography);
+	biographySource = document.toPlainText().trimmed();
+	biographyTranslationContext = QLatin1String("Artist biography for ") + currentSong.artist;
+	if (TranslationService::self()->isEnabled() && !biographySource.isEmpty()) {
+		const QString translated = TranslationService::self()->translate(biographySource, biographyTranslationContext);
+		if (translated != biographySource) {
+			biography = TranslationService::plainTextToHtml(translated);
+		}
+	}
 	hideSpinner();
 
 	if (!resp.isEmpty() && !lang.isEmpty()) {
@@ -394,6 +419,19 @@ void ArtistView::searchResponse(const QString& resp, const QString& lang)
 	}
 	}
 	loadSimilar();
+	setBio();
+}
+
+void ArtistView::biographyTranslationReady(const QString& source, const QString& context, const QString& translation)
+{
+	if (source != biographySource || context != biographyTranslationContext ||
+	    context != QLatin1String("Artist biography for ") + currentSong.artist) {
+		return;
+	}
+	if (translation == source) {
+		return;
+	}
+	biography = TranslationService::plainTextToHtml(translation);
 	setBio();
 }
 

@@ -25,6 +25,9 @@
 #define ACTIONITEMDELEGATE_H
 
 #include <QStyledItemDelegate>
+#include <QPointer>
+#include <QPersistentModelIndex>
+#include <QString>
 
 class QAction;
 
@@ -65,6 +68,11 @@ private:
 protected:
 	bool largeIcons;
 	bool underMouse;
+	QString pendingTooltipSource;
+	QString pendingTooltipHtml;
+	QString pendingTooltipContext;
+	QPointer<QAbstractItemView> pendingTooltipView;
+	QPersistentModelIndex pendingTooltipIndex;
 };
 
 #endif

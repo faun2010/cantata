@@ -24,17 +24,21 @@
 #include "actionitemdelegate.h"
 #include "config.h"
 #include "groupedview.h"
+#include "musictooltip.h"
 #include "models/actionmodel.h"
 #include "models/roles.h"
+#include "network/translationservice.h"
 #include "support/icon.h"
 #include "support/utils.h"
 #include <QApplication>
+#include <QCursor>
 #include <QHelpEvent>
 #include <QListView>
 #include <QPainter>
 #include <QPixmap>
 #include <QPointer>
 #include <QToolTip>
+#include <QTextDocument>
 
 int ActionItemDelegate::constBorder = 1;
 int ActionItemDelegate::constActionBorder = 4;
@@ -119,6 +123,18 @@ static void drawBgnd(QPainter* painter, const QRect& rx, bool light)
 ActionItemDelegate::ActionItemDelegate(QObject* p)
 	: QStyledItemDelegate(p), largeIcons(false), underMouse(false)
 {
+	connect(TranslationService::self(), &TranslationService::translationReady, this,
+	        [this](const QString& source, const QString& context, const QString& translation) {
+			if (source == pendingTooltipSource && context == pendingTooltipContext && pendingTooltipView &&
+			    pendingTooltipView->isVisible() && QApplication::activeWindow() == pendingTooltipView->window() &&
+			    pendingTooltipView->indexAt(pendingTooltipView->viewport()->mapFromGlobal(QCursor::pos())) == pendingTooltipIndex) {
+				if (getAction(pendingTooltipIndex)) return;
+				if (pendingTooltipIndex.data(Qt::ToolTipRole).toString() != pendingTooltipHtml) return;
+				const QString html = translation.isEmpty() || translation == source ? pendingTooltipHtml
+				    : MusicToolTip::translatedHtml(pendingTooltipHtml, translation);
+				QToolTip::showText(QCursor::pos(), html, pendingTooltipView);
+			}
+		});
 }
 
 void ActionItemDelegate::drawIcons(QPainter* painter, const QRect& r, bool mouseOver, bool rtl, ActionPos actionPos, const QModelIndex& index) const
@@ -159,7 +175,39 @@ bool ActionItemDelegate::helpEvent(QHelpEvent* e, QAbstractItemView* view, const
 	if (QEvent::ToolTip == e->type()) {
 		QAction* act = getAction(index);
 		if (act) {
+			pendingTooltipSource.clear();
+			pendingTooltipContext.clear();
+			pendingTooltipHtml.clear();
+			pendingTooltipIndex = QPersistentModelIndex();
 			QToolTip::showText(e->globalPos(), act->toolTip(), view);
+			return true;
+		}
+
+		const QString sourceHtml = index.data(Qt::ToolTipRole).toString();
+		pendingTooltipSource.clear();
+		pendingTooltipHtml.clear();
+		pendingTooltipContext.clear();
+		pendingTooltipIndex = QPersistentModelIndex();
+		// Music models provide structured detail tables; action and navigation
+		// help remains in the application's normal language.
+		if (sourceHtml.startsWith(QLatin1String("<table>")) && sourceHtml.contains(QLatin1String("<b>"))) {
+			const QString source = MusicToolTip::sourceText(sourceHtml);
+			const QString context = QLatin1String("music-details");
+			pendingTooltipSource = source;
+			pendingTooltipHtml = sourceHtml;
+			pendingTooltipContext = context;
+			pendingTooltipView = view;
+			pendingTooltipIndex = index;
+			TranslationService* service = TranslationService::self();
+			QString translated = service->cached(source, context);
+			if (translated.isEmpty()) {
+				translated = service->cached(MusicToolTip::legacySourceText(sourceHtml), context);
+			}
+			if (translated.isEmpty()) {
+				translated = service->translate(source, context);
+			}
+			QToolTip::showText(e->globalPos(), translated == source ? sourceHtml
+			    : MusicToolTip::translatedHtml(sourceHtml, translated), view);
 			return true;
 		}
 	}

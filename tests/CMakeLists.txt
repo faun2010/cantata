@@ -1,0 +1,47 @@
+cmake_minimum_required(VERSION 3.16)
+project(CantataTranslationServiceTests LANGUAGES CXX)
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_CXX_STANDARD 17)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Network Test)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Network Test)
+
+add_executable(translationservice_test
+    translationservice_test.cpp
+    ../network/translationservice.cpp
+)
+
+add_executable(ollama_translation_smoke
+    ollama_translation_smoke.cpp
+    ../network/translationservice.cpp
+)
+target_include_directories(ollama_translation_smoke PRIVATE ..)
+target_link_libraries(ollama_translation_smoke PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+)
+target_include_directories(translationservice_test PRIVATE ..)
+target_link_libraries(translationservice_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Test
+)
+
+enable_testing()
+add_test(NAME translationservice_test COMMAND translationservice_test)
+
+add_executable(wikitemplateutils_test
+    wikitemplateutils_test.cpp
+)
+target_include_directories(wikitemplateutils_test PRIVATE ..)
+target_link_libraries(wikitemplateutils_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Test
+)
+add_test(NAME wikitemplateutils_test COMMAND wikitemplateutils_test)
+
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Gui)
+add_executable(musictooltip_test musictooltip_test.cpp)
+target_include_directories(musictooltip_test PRIVATE ..)
+target_link_libraries(musictooltip_test PRIVATE Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Test)
+add_test(NAME musictooltip_test COMMAND musictooltip_test)

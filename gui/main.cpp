@@ -52,6 +52,7 @@
 #include "context/ultimatelyricsprovider.h"
 #include "http/httpserver.h"
 #include "network/networkaccessmanager.h"
+#include "network/translationservice.h"
 #include "streams/streamfetcher.h"
 #include "tags/taghelperiface.h"
 #include "widgets/songdialog.h"
@@ -391,6 +392,7 @@ int main(int argc, char* argv[])
 
 	if (cmdLineParser.isSet(noNetworkOption)) {
 		NetworkAccessManager::disableNetworkAccess();
+		TranslationService::disableNetworkAccess();
 	}
 
 // Set the permissions on the config file on Unix - it can contain passwords

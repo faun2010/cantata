@@ -22,6 +22,7 @@
  */
 
 #include "wikipediaengine.h"
+#include "wikitemplateutils.h"
 #include "config.h"
 #include "gui/covers.h"
 #include "gui/settings.h"
@@ -226,7 +227,8 @@ static QString wikiToHtml(QString answer, bool introOnly, const QUrl& url)
 
 	answer = answer.mid(start, end - start);// strip header/footer
 											//    answer = strip(answer, "({{", "}})"); // strip wiki internal stuff
-	answer = strip(answer, "{{", "}}");     // strip wiki internal stuff
+	answer = WikiTemplateUtils::visibleTemplateText(answer);
+	answer = strip(answer, "{{", "}}");     // strip remaining wiki internal stuff
 	answer.replace("&lt;", "<").replace("&gt;", ">");
 	answer = strip(answer, "<!--", "-->");// strip comments
 	static const QRegularExpression reftagEX("<ref[^>]*/>");

@@ -601,7 +601,7 @@ QString Song::trackAndTitleStr(bool showArtistIfDifferent) const
 static void addField(const QString& name, const QString& val, QString& tt)
 {
 	if (!val.isEmpty()) {
-		tt += QString("<tr><td align=\"right\"><b>%1:&nbsp;&nbsp;</b></td><td>%2</td></tr>").arg(name).arg(val);
+		tt += QString("<tr><td align=\"right\"><b>%1:&nbsp;&nbsp;</b></td><td>%2</td></tr>").arg(name.toHtmlEscaped(), val.toHtmlEscaped());
 	}
 }
 #endif
@@ -642,7 +642,7 @@ QString Song::toolTip() const
 	if (isNonMPD()) {
 		return toolTip;
 	}
-	return toolTip + QLatin1String("<br/><br/><small><i>") + filePath() + QLatin1String("</i></small>");
+	return toolTip + QLatin1String("<br/><br/><small><i>") + filePath().toHtmlEscaped() + QLatin1String("</i></small>");
 #endif
 }
 
