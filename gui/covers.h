@@ -34,6 +34,8 @@
 #include <QObject>
 #include <QPixmap>
 #include <QSet>
+#include <QStringList>
+#include <atomic>
 
 class QString;
 class Thread;
@@ -50,7 +52,13 @@ public:
 		JobMpd,
 		JobHttpJpg,
 		JobHttpPng,
-		JobRemote
+		JobRemote,
+		JobDiscogsArtist,
+		JobDiscogsImage,
+		JobFanArt,
+		JobMusicBrainzSearch,
+		JobMusicBrainzArtist,
+		JobWikiData
 	};
 
 	struct Job {
@@ -59,6 +67,12 @@ public:
 		Song song;
 		QString filePath;
 		QString dir;
+		QString musicBrainzId;
+		QString wikiDataId;
+		QString discogsArtistId;
+		QStringList discogsImageUrls;
+		bool discogsLookupPending = false;
+		bool musicBrainzLinksLoaded = false;
 		JobType type;
 		int level;
 	};
@@ -81,11 +95,25 @@ private:
 	void downloadViaMpd(Job& job);
 	bool downloadViaHttp(Job& job, JobType type);
 	void downloadViaRemote(Job& job);
+	void downloadViaDiscogs(Job& job);
+	void downloadViaDiscogsArtist(Job job);
+	void startDiscogsArtist(Job job);
+	void downloadNextDiscogsImage(Job job);
+	void downloadViaFanArt(Job& job);
+	void downloadViaMusicBrainzSearch(Job& job);
+	void downloadViaMusicBrainzArtist(Job& job);
+	void downloadViaWikiData(Job& job);
+	void startMusicBrainzSearch(Job job);
+	void startMusicBrainzArtist(Job job);
 
 private Q_SLOTS:
 	void mpdAlbumArt(const Song& song, const QByteArray& data);
 	void remoteCallFinished();
 	void lastFmArtistCallFinished();
+	void discogsArtistCallFinished();
+	void musicBrainzSearchFinished();
+	void musicBrainzArtistCallFinished();
+	void wikiDataCallFinished();
 	void jobFinished();
 	void onlineJobFinished();
 
@@ -102,6 +130,9 @@ private:
 private:
 	Thread* thread;
 	NetworkAccessManager* manager;
+	qint64 nextMusicBrainzRequest;
+	qint64 nextDiscogsRequest;
+	std::atomic_bool stopped;
 };
 
 struct LocatedCover {
@@ -251,6 +282,11 @@ private Q_SLOTS:
 	void composerImageDownloaded(const Song& song, const QImage& img, const QString& file);
 
 private:
+	enum ArtistImageRetryState {
+		NoArtistImageFailure,
+		ArtistImageRetryDeferred,
+		ArtistImageRetryExpired
+	};
 	QPixmap* defaultPix(const Song& song, int size, int origSize);
 	void tryToLocate(const Song& song);
 	void tryToDownload(const Song& song);
@@ -260,6 +296,8 @@ private:
 	void gotAlbumCover(const Song& song, const QImage& img, const QString& fileName, bool emitResult = true);
 	void gotArtistImage(const Song& song, const QImage& img, const QString& fileName, bool emitResult = true);
 	void gotComposerImage(const Song& song, const QImage& img, const QString& fileName, bool emitResult = true);
+	ArtistImageRetryState artistImageRetryState(const Song& song);
+	bool takeExpiredArtistImageRetry(const Song& song);
 	QString getFilename(const Song& s);
 
 private:
@@ -268,6 +306,7 @@ private:
 	QSet<int> cacheSizes;
 	QCache<QString, QPixmap> cache;
 	QMap<QString, QString> filenames;
+	QHash<QString, qint64> artistImageFailures;
 	CoverDownloader* downloader;
 	CoverLocator* locator;
 	CoverLoader* loader;

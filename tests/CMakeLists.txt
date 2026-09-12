@@ -30,6 +30,16 @@ target_link_libraries(translationservice_test PRIVATE
 enable_testing()
 add_test(NAME translationservice_test COMMAND translationservice_test)
 
+add_executable(artistimageprovider_test
+    artistimageprovider_test.cpp
+)
+target_include_directories(artistimageprovider_test PRIVATE ..)
+target_link_libraries(artistimageprovider_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Test
+)
+add_test(NAME artistimageprovider_test COMMAND artistimageprovider_test)
+
 add_executable(wikitemplateutils_test
     wikitemplateutils_test.cpp
 )
@@ -41,6 +51,16 @@ target_link_libraries(wikitemplateutils_test PRIVATE
 add_test(NAME wikitemplateutils_test COMMAND wikitemplateutils_test)
 
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Gui)
+add_executable(artworkquality_test artworkquality_test.cpp)
+target_include_directories(artworkquality_test PRIVATE ..)
+target_link_libraries(artworkquality_test PRIVATE Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Test)
+add_test(NAME artworkquality_test COMMAND artworkquality_test)
+
+add_executable(discogsartwork_test discogsartwork_test.cpp)
+target_include_directories(discogsartwork_test PRIVATE ..)
+target_link_libraries(discogsartwork_test PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Test)
+add_test(NAME discogsartwork_test COMMAND discogsartwork_test)
+
 add_executable(musictooltip_test musictooltip_test.cpp)
 target_include_directories(musictooltip_test PRIVATE ..)
 target_link_libraries(musictooltip_test PRIVATE Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Test)
