@@ -1,0 +1,40 @@
+support/llmconfigsettings.cpp
+  s_76d2fc9bc87254::t_a268a45b4a8bf6 1-72
+gui/translationsettings.ui
+  s_76d2fc9bc87254::t_99589f9bf21c8f 9-10,14,22,24,27,31-43,46,48,51,55-56,58,62-63,65-68,72-76,78-88,93,95-98,103-119,121,125-128,130-131,133,135-211,224
+gui/settings.cpp
+  s_76d2fc9bc87254::t_99589f9bf21c8f 428,430-470,475,1024-1064,1066
+gui/translationsettings.h
+  s_76d2fc9bc87254::t_99589f9bf21c8f 27,43-45,52,58
+gui/translationsettings.cpp
+  s_76d2fc9bc87254::t_2a9965c4bf0844 110-113
+  s_76d2fc9bc87254::t_99589f9bf21c8f 27-28,35,42-71,75,86,99-100,114-132,141
+gui/settings.h
+  s_76d2fc9bc87254::t_99589f9bf21c8f 85-93,207-215
+support/llmconfig.cpp
+  s_76d2fc9bc87254::t_99589f9bf21c8f 100
+support/llmtranslator.cpp
+  s_76d2fc9bc87254::t_99589f9bf21c8f 29,79-93,95
+support/tests/llmtranslatortest.cpp
+  s_76d2fc9bc87254::t_99589f9bf21c8f 26
+support/CMakeLists.txt
+  s_76d2fc9bc87254::t_a268a45b4a8bf6 53
+support/llmconfig.h
+  s_76d2fc9bc87254::t_99589f9bf21c8f 31,33-36,48-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "1b3664de12e001a1a67b3cee70ab25bd85a78e49",
+  "prompts": {},
+  "sessions": {
+    "s_76d2fc9bc87254": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00c092f0-32a4-4dd8-a84a-a8ee6fcdd4e9",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
