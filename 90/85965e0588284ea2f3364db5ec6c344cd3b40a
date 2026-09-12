@@ -1,0 +1,58 @@
+support/tests/llmtranslatortest.cpp
+  s_76d2fc9bc87254::t_66d330afc95c1b 1-8,10-100
+  s_76d2fc9bc87254::t_873bce5e0d0a18 9
+gui/preferencesdialog.h
+  s_76d2fc9bc87254::t_72d7c88f140b51 49,91
+gui/preferencesdialog.cpp
+  s_76d2fc9bc87254::t_72d7c88f140b51 46,72,104,154
+support/translationcache.cpp
+  s_76d2fc9bc87254::t_c9451c9ac11722 1-147
+CMakeLists.txt
+  s_76d2fc9bc87254::t_76633b708443d2 417
+support/llmtranslator.h
+  s_76d2fc9bc87254::t_8336744413a73c 1-148
+gui/translationsettings.cpp
+  s_76d2fc9bc87254::t_f94d7d7ddf4882 1-94
+gui/settings.h
+  s_76d2fc9bc87254::t_d9f886fbb60c52 84-88,198-202
+support/llmconfig.h
+  s_76d2fc9bc87254::t_71a8c6e805b21f 1-72
+support/CMakeLists.txt
+  s_76d2fc9bc87254::t_76633b708443d2 52-54
+support/llmconfig.cpp
+  s_76d2fc9bc87254::t_c8e6d042186d96 1-202
+support/llmtranslator.cpp
+  s_76d2fc9bc87254::t_b5f2c79e9e7ae0 1-603
+gui/settings.cpp
+  s_76d2fc9bc87254::t_d9f886fbb60c52 423-447,979-1002
+gui/translationsettings.h
+  s_76d2fc9bc87254::t_6b3d137fbfd572 1-46
+context/artistview.h
+  s_76d2fc9bc87254::t_98f47d9c163b55 72,76,88-89
+support/translationcache.h
+  s_76d2fc9bc87254::t_ee947c3eef4e41 1-57
+gui/translationsettings.ui
+  s_76d2fc9bc87254::t_3fccded0db2ca7 1-140
+support/tests/README
+  s_76d2fc9bc87254::t_33db84d07df593 1-12
+context/artistview.cpp
+  s_76d2fc9bc87254::t_520d50860071d4 105
+  s_76d2fc9bc87254::t_98f47d9c163b55 26-27,111,188-189,316-353,356-364,441
+  s_76d2fc9bc87254::t_520325103777bc 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "9085965e0588284ea2f3364db5ec6c344cd3b40a",
+  "prompts": {},
+  "sessions": {
+    "s_76d2fc9bc87254": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00c092f0-32a4-4dd8-a84a-a8ee6fcdd4e9",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
