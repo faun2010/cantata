@@ -28,6 +28,8 @@
 #include "support/configuration.h"
 #include "support/utils.h"
 #include "widgets/icons.h"
+#include "network/musicsearch.h"
+#include "support/searchterms.h"
 #include <QMimeData>
 #include <time.h>
 
@@ -75,6 +77,9 @@ SqlLibraryModel::SqlLibraryModel(LibraryDb* d, QObject* p, Type top)
 {
 	connect(db, SIGNAL(libraryUpdated()), SLOT(libraryUpdated()));
 	connect(db, SIGNAL(error(QString)), this, SIGNAL(error(QString)));
+	connect(MusicSearch::self(), &MusicSearch::alternativesReady, this, [this](const QString& term) {
+		if (SearchTerms::tokens(searchText.toLower()).contains(term)) search(searchText, searchGenre);
+	});
 }
 
 void SqlLibraryModel::clear()
@@ -264,7 +269,13 @@ void SqlLibraryModel::libraryUpdated()
 
 void SqlLibraryModel::search(const QString& str, const QString& genre)
 {
-	if (db->setFilter(str, genre)) {
+	searchText = str;
+	searchGenre = genre;
+	QMap<QString, QStringList> alternatives;
+	for (const QString& term : SearchTerms::tokens(str.toLower())) {
+		if (MusicSearch::containsChinese(term)) alternatives.insert(term, MusicSearch::self()->alternatives(term));
+	}
+	if (db->setFilter(str, genre, alternatives)) {
 		libraryUpdated();
 	}
 }

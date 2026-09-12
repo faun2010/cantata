@@ -22,6 +22,7 @@
  */
 
 #include "librarydb.h"
+#include "support/searchterms.h"
 #include "support/utils.h"
 #include <QCoreApplication>
 #include <QDebug>
@@ -1174,7 +1175,7 @@ static const quint16 constMinYear = 1500;
 static const quint16 constMaxYear = 2500;// 2500 (bit hopeful here :-) )
 static QRegularExpression longStringRegex = QRegularExpression("\\s+");
 
-bool LibraryDb::setFilter(const QString& f, const QString& genre)
+bool LibraryDb::setFilter(const QString& f, const QString& genre, const QMap<QString, QStringList>& alternatives)
 {
 	QString newFilter = f.trimmed().toLower();
 	QString year;
@@ -1212,6 +1213,14 @@ bool LibraryDb::setFilter(const QString& f, const QString& genre)
 						}
 						continue;
 					}
+				}
+			}
+			const QStringList expanded = alternatives.value(str);
+			if (expanded.size() > 1) {
+				const QString group = SearchTerms::ftsAlternatives(expanded);
+				if (!group.isEmpty()) {
+					tokens.append(group);
+					continue;
 				}
 			}
 			for (const QLatin1Char ch : replaceChars) {

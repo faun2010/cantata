@@ -24,7 +24,9 @@
 #include "mpdsearchmodel.h"
 #include "gui/covers.h"
 #include "mpd-interface/mpdconnection.h"
+#include "network/musicsearch.h"
 #include "roles.h"
+#include <algorithm>
 
 MpdSearchModel::MpdSearchModel(QObject* parent)
 	: SearchModel(parent), currentId(0)
@@ -34,6 +36,7 @@ MpdSearchModel::MpdSearchModel(QObject* parent)
 	connect(MPDConnection::self(), SIGNAL(searchResponse(int, QList<Song>)), this, SLOT(searchFinished(int, QList<Song>)));
 	connect(MPDConnection::self(), SIGNAL(rating(QString, quint8)), SLOT(ratingResult(QString, quint8)));
 	connect(Covers::self(), SIGNAL(loaded(Song, int)), this, SLOT(coverLoaded(Song, int)));
+	connect(MusicSearch::self(), &MusicSearch::alternativesReady, this, &MpdSearchModel::searchAlternativesReady);
 }
 
 MpdSearchModel::~MpdSearchModel()
@@ -71,6 +74,7 @@ QVariant MpdSearchModel::data(const QModelIndex& index, int role) const
 void MpdSearchModel::clear()
 {
 	currentId++;
+	submittedValues.clear();
 	SearchModel::clear();
 	// Cancelled requests are ignored by searchFinished(), so cancellation
 	// itself must finish the view's busy state.
@@ -91,7 +95,7 @@ void MpdSearchModel::search(const QString& key, const QString& value)
 	currentValue = value;
 	currentId++;
 	emit searching();
-	emit search(key, value, currentId);
+	submitSearches(expandsCurrentSearch() ? MusicSearch::self()->alternatives(value) : QStringList(value));
 }
 
 void MpdSearchModel::searchFinished(int id, const QList<Song>& result)
@@ -100,7 +104,46 @@ void MpdSearchModel::searchFinished(int id, const QList<Song>& result)
 		return;
 	}
 
-	results(result);
+	QList<Song> combined = songList;
+	QSet<QString> files;
+	for (const Song& song : combined) {
+		files.insert(song.file);
+	}
+	for (const Song& song : result) {
+		if (!files.contains(song.file)) {
+			files.insert(song.file);
+			combined.append(song);
+		}
+	}
+	std::sort(combined.begin(), combined.end());
+	results(combined);
+}
+
+bool MpdSearchModel::expandsCurrentSearch() const
+{
+	static const QSet<QString> searchableMetadata = {
+	    QLatin1String("artist"), QLatin1String("composer"), QLatin1String("performer"),
+	    QLatin1String("album"), QLatin1String("title"), QLatin1String("genre"),
+	    QLatin1String("comment"), QLatin1String("any")};
+	return searchableMetadata.contains(currentKey) && MusicSearch::containsChinese(currentValue);
+}
+
+void MpdSearchModel::submitSearches(const QStringList& values)
+{
+	for (const QString& value : values) {
+		const QString candidate = value.trimmed();
+		if (!candidate.isEmpty() && !submittedValues.contains(candidate)) {
+			submittedValues.insert(candidate);
+			emit search(currentKey, candidate, currentId);
+		}
+	}
+}
+
+void MpdSearchModel::searchAlternativesReady(const QString& term)
+{
+	if (term == currentValue && expandsCurrentSearch()) {
+		submitSearches(MusicSearch::self()->alternatives(term));
+	}
 }
 
 void MpdSearchModel::coverLoaded(const Song& song, int s)

@@ -33,7 +33,7 @@ class QMimeData;
 
 class ProxyModel : public QSortFilterProxyModel {
 public:
-	ProxyModel(QObject* parent) : QSortFilterProxyModel(parent), isSorted(false), filterEnabled(false), filter(nullptr) {}
+	ProxyModel(QObject* parent);
 	~ProxyModel() override {}
 
 	bool update(const QString& text);
@@ -70,7 +70,7 @@ protected:
 	QModelIndex rootIndex;
 	QString origFilterText;
 	QStringList filterStrings;
-	uint unmatchedStrings;
+	QList<QStringList> filterAlternatives;
 	const void* filter;
 	quint16 yearFrom;
 	quint16 yearTo;

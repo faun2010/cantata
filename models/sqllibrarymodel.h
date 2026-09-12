@@ -190,6 +190,8 @@ protected:
 	LibraryDb::AlbumSort librarySort;
 	LibraryDb::AlbumSort albumSort;
 	QStringList categories;
+	QString searchText;
+	QString searchGenre;
 };
 
 #endif
