@@ -63,6 +63,9 @@ private:
 		QString provider;
 		quint64 generation = 0;
 		QTimer* timer = nullptr;
+		// Set when a newer, more specific request (same context) has taken
+		// over for this one; finishRequest() then discards it silently.
+		bool superseded = false;
 	};
 
 	QString cacheKey(const QString& source, const QString& context) const;
@@ -73,6 +76,11 @@ private:
 	void finishRequest(QNetworkReply* reply, bool timedOut = false);
 	void createDefaultConfiguration() const;
 	QString endpoint() const;
+	// Drops/aborts still-pending requests in the same context whose source is
+	// a strict prefix of, or is prefixed by, the incoming source. Keeps a
+	// burst of IME keystrokes (e.g. 贝 -> 贝多 -> 贝多芬) from queuing up
+	// stale intermediate search terms behind the final one.
+	void supersedeRelatedRequests(const QString& source, const QString& context);
 
 	QString configFile;
 	QString cacheDir;
@@ -93,6 +101,10 @@ private:
 	mutable QHash<QString, QString> memoryCache;
 	mutable QList<QString> memoryOrder;
 	QHash<QString, qint64> failures;
+	// Set for ~60s after a connection-level failure (refused, host not
+	// found, timed out, ...) so every context fails fast instead of each
+	// (source, context) pair separately retrying a dead endpoint.
+	qint64 endpointUnavailableUntil = 0;
 	QHash<QNetworkReply*, Request> requests;
 	QList<Request> queuedRequests;
 	QSet<QString> pendingTokens;

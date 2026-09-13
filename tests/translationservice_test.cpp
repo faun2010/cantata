@@ -101,7 +101,9 @@ private Q_SLOTS:
 		QCOMPARE(settings.value(QLatin1String("provider")).toString(), QLatin1String("ollama"));
 		QCOMPARE(settings.value(QLatin1String("url")).toString(), QLatin1String("http://127.0.0.1:11434"));
 		QCOMPARE(settings.value(QLatin1String("model")).toString(), QLatin1String("qwen3.8:27b"));
-		QVERIFY(settings.value(QLatin1String("enabled")).toBool());
+		// Off by default: an unattended local Ollama endpoint must not receive
+		// every tooltip hover, search term and artist biography without opt-in.
+		QVERIFY(!settings.value(QLatin1String("enabled")).toBool());
 		QCOMPARE(settings.value(QLatin1String("timeoutMs")).toInt(), 180000);
 		QCOMPARE(settings.value(QLatin1String("maxConcurrentRequests")).toInt(), 1);
 		QCOMPARE(settings.value(QLatin1String("maxQueuedRequests")).toInt(), 16);
@@ -217,6 +219,55 @@ private Q_SLOTS:
 		QCOMPARE(requestCount, 1);
 	}
 
+	void endpointCooldownAfterConnectionRefused()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		const QUrl refusedUrl = serverUrl(server);
+		server.close(); // Nothing is listening on this port now: connections are refused.
+
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		writeConfig(config, refusedUrl, QLatin1String("model"), 30, 2000);
+
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		QCOMPARE(service.translate(QLatin1String("first"), QLatin1String("context-a")), QLatin1String("first"));
+		QTRY_COMPARE(ready.count(), 1);
+		QCOMPARE(ready.first().at(2).toString(), QLatin1String("first"));
+
+		// The endpoint is now marked unavailable for ~60s: a completely
+		// different (source, context) pair must fail fast synchronously,
+		// with no network attempt and therefore no further signal at all.
+		QCOMPARE(service.translate(QLatin1String("second"), QLatin1String("context-b")), QLatin1String("second"));
+		QTest::qWait(150);
+		QCOMPARE(ready.count(), 1);
+	}
+
+	void queuedRequestsClearedWhenEndpointBecomesUnavailable()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		const QUrl refusedUrl = serverUrl(server);
+		server.close();
+
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		writeConfig(config, refusedUrl, QLatin1String("model"), 30, 2000, 1, 16);
+
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		for (int i = 0; i < 5; ++i) {
+			service.translate(QString::fromLatin1("text-%1").arg(i), QString::fromLatin1("context-%1").arg(i));
+		}
+		// Only the first request is in flight; the connection-refused failure
+		// on it must drop the other four queued requests immediately rather
+		// than let each fail serially against the same dead endpoint.
+		QTRY_COMPARE(ready.count(), 1);
+		QTest::qWait(150);
+		QCOMPARE(ready.count(), 1);
+	}
+
 	void limitsConcurrencyAndQueueSize()
 	{
 		QTemporaryDir temporary;
@@ -236,6 +287,61 @@ private Q_SLOTS:
 		QCOMPARE(requestCount, 1);
 		QTRY_COMPARE(ready.count(), 4);
 		QCOMPARE(requestCount, 4);
+	}
+
+	void prefixSupersedesQueuedAndInFlightRequests()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		int requestCount = 0;
+		QJsonObject response;
+		// music-search-v1 responses must be a JSON array of alternatives, or
+		// the malformed-response guard clears them back to the source text.
+		response.insert(QLatin1String("response"), QString::fromUtf8("[\"Beethoven\"]"));
+		serve(server, requestCount, QJsonDocument(response).toJson(QJsonDocument::Compact), 200, 100);
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		writeConfig(config, serverUrl(server), QLatin1String("model"), 30, 5000, 1, 16);
+
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		// Simulates an IME keystroke burst against the music-search context:
+		// each later term is a strict extension of the previous one.
+		service.translate(QString::fromUtf8("\xe8\xb4\x9d"), QLatin1String("music-search-v1"));
+		service.translate(QString::fromUtf8("\xe8\xb4\x9d\xe5\xa4\x9a"), QLatin1String("music-search-v1"));
+		service.translate(QString::fromUtf8("\xe8\xb4\x9d\xe5\xa4\x9a\xe8\x8a\xac"), QLatin1String("music-search-v1"));
+
+		// Only the final, most specific term should ever complete: the
+		// stale prefixes are superseded without emitting a signal for them.
+		QTRY_COMPARE(ready.count(), 1);
+		QCOMPARE(ready.first().at(0).toString(), QString::fromUtf8("\xe8\xb4\x9d\xe5\xa4\x9a\xe8\x8a\xac"));
+		QCOMPARE(ready.first().at(2).toString(), QLatin1String("[\"Beethoven\"]"));
+		QTest::qWait(150);
+		QCOMPARE(ready.count(), 1);
+	}
+
+	void prefixSupersedeKeepsUnrelatedContext()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		int requestCount = 0;
+		serve(server, requestCount, QByteArrayLiteral("{\"response\":\"translated\"}"), 200, 50);
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		writeConfig(config, serverUrl(server), QLatin1String("model"), 30, 5000, 1, 16);
+
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		// "ab" is a prefix of "abc", but the contexts differ, so neither
+		// request should supersede the other.
+		service.translate(QLatin1String("ab"), QLatin1String("context-one"));
+		service.translate(QLatin1String("abc"), QLatin1String("context-two"));
+		QTRY_COMPARE(ready.count(), 2);
+		QSet<QString> sources;
+		sources.insert(ready.at(0).at(0).toString());
+		sources.insert(ready.at(1).at(0).toString());
+		QVERIFY(sources.contains(QLatin1String("ab")));
+		QVERIFY(sources.contains(QLatin1String("abc")));
 	}
 
 	void timeoutFallsBackToSource()

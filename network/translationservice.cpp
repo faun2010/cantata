@@ -36,6 +36,39 @@ static const char defaultModel[] = "qwen3.8:27b";
 static const char defaultLanguage[] = "Simplified Chinese";
 static const char defaultPromptVersion[] = "2";
 static bool translationNetworkAccessEnabled = true;
+// How long translate() fails fast for every context once the configured
+// endpoint has been found unreachable (as opposed to returning an HTTP
+// error or bad content).
+static const qint64 endpointCooldownMs = 60000;
+
+// A connection-level failure means the endpoint itself is unreachable, as
+// opposed to an HTTP 4xx/5xx response or bad content from a live server.
+static bool isEndpointUnreachableError(QNetworkReply::NetworkError error)
+{
+	switch (error) {
+	case QNetworkReply::ConnectionRefusedError:
+	case QNetworkReply::RemoteHostClosedError:
+	case QNetworkReply::HostNotFoundError:
+	case QNetworkReply::TimeoutError:
+	case QNetworkReply::NetworkSessionFailedError:
+	case QNetworkReply::TemporaryNetworkFailureError:
+	case QNetworkReply::ProxyConnectionRefusedError:
+	case QNetworkReply::ProxyConnectionClosedError:
+	case QNetworkReply::ProxyNotFoundError:
+	case QNetworkReply::ProxyTimeoutError:
+		return true;
+	default:
+		return false;
+	}
+}
+
+// True when one of the two strings is a strict prefix of the other, which is
+// how a run of IME keystrokes (贝 -> 贝多 -> 贝多芬) relates consecutive
+// search terms.
+static bool isPrefixRelated(const QString& a, const QString& b)
+{
+	return a != b && (a.startsWith(b) || b.startsWith(a));
+}
 
 GLOBAL_STATIC(TranslationService, translationServiceInstance)
 
@@ -73,7 +106,9 @@ void TranslationService::createDefaultConfiguration() const
 {
 	QSettings settings(configFile, QSettings::IniFormat);
 	settings.beginGroup(QLatin1String("Translation"));
-	settings.setValue(QLatin1String("enabled"), true);
+	// Off by default: an unattended Ollama endpoint must not receive every
+	// tooltip hover, search term and artist biography without opt-in.
+	settings.setValue(QLatin1String("enabled"), false);
 	settings.setValue(QLatin1String("provider"), QLatin1String(defaultProvider));
 	settings.setValue(QLatin1String("url"), QLatin1String(defaultUrl));
 	settings.setValue(QLatin1String("model"), QLatin1String(defaultModel));
@@ -126,6 +161,7 @@ void TranslationService::reloadConfiguration()
 	memoryCache.clear();
 	memoryOrder.clear();
 	failures.clear();
+	endpointUnavailableUntil = 0;
 }
 
 QString TranslationService::endpoint() const
@@ -205,8 +241,13 @@ QString TranslationService::translate(const QString& source, const QString& cont
 	if (!translationNetworkAccessEnabled) return source;
 
 	const qint64 now = QDateTime::currentMSecsSinceEpoch();
+	if (endpointUnavailableUntil > now) return source;
 	const QString pendingToken = QString::number(configurationGeneration) + QLatin1Char(':') + key;
 	if (pendingTokens.contains(pendingToken) || failures.value(key, 0) > now) return source;
+
+	// Only search terms arrive as IME keystroke bursts; tooltip and biography
+	// sources that happen to share a prefix are independent requests.
+	if (context.startsWith(QLatin1String("music-search"))) supersedeRelatedRequests(source, context);
 
 	Request request;
 	request.key = key;
@@ -308,6 +349,27 @@ void TranslationService::startRequest(Request pending)
 	requests.insert(reply, pending);
 }
 
+void TranslationService::supersedeRelatedRequests(const QString& source, const QString& context)
+{
+	for (int i = queuedRequests.size() - 1; i >= 0; --i) {
+		const Request& queued = queuedRequests.at(i);
+		if (queued.context == context && isPrefixRelated(queued.source, source)) {
+			pendingTokens.remove(queued.pendingToken);
+			queuedRequests.removeAt(i);
+		}
+	}
+
+	const QList<QNetworkReply*> inFlight = requests.keys();
+	for (QNetworkReply* reply : inFlight) {
+		Request& active = requests[reply];
+		if (!active.superseded && active.context == context && isPrefixRelated(active.source, source)) {
+			active.superseded = true;
+			pendingTokens.remove(active.pendingToken);
+			reply->abort();
+		}
+	}
+}
+
 void TranslationService::startQueuedRequests()
 {
 	while (requests.size() < maxConcurrentRequests && !queuedRequests.isEmpty()) {
@@ -336,6 +398,15 @@ void TranslationService::finishRequest(QNetworkReply* reply, bool timedOut)
 	if (timedOut && reply->isRunning()) reply->abort();
 	disconnect(reply, &QNetworkReply::finished, this, &TranslationService::requestFinished);
 
+	if (request.superseded) {
+		// Aborted because a newer, more specific request (e.g. a later IME
+		// keystroke) took over for it. Not a real failure: skip cache
+		// poisoning, cooldown accounting, and signal emission entirely.
+		reply->deleteLater();
+		startQueuedRequests();
+		return;
+	}
+
 	QString translation;
 	if (!timedOut && reply->error() == QNetworkReply::NoError) {
 		QJsonParseError error;
@@ -350,6 +421,16 @@ void TranslationService::finishRequest(QNetworkReply* reply, bool timedOut)
 				if (!choices.isEmpty()) translation = choices.first().toObject().value(QLatin1String("message")).toObject().value(QLatin1String("content")).toString().trimmed();
 			}
 		}
+	}
+	else if (!timedOut && isEndpointUnreachableError(reply->error())) {
+		// The endpoint itself is unreachable (refused, not found, timed out
+		// at the transport level, ...) rather than returning an HTTP error or
+		// bad content. Fail fast for every context for a while instead of
+		// letting each (source, context) pair queue up its own doomed
+		// connection attempt.
+		endpointUnavailableUntil = QDateTime::currentMSecsSinceEpoch() + endpointCooldownMs;
+		for (int i = 0; i < queuedRequests.size(); ++i) pendingTokens.remove(queuedRequests.at(i).pendingToken);
+		queuedRequests.clear();
 	}
 
 	// A malformed search response must not permanently poison the cache.
