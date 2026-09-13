@@ -1,0 +1,39 @@
+online/podcastwidget.cpp
+  s_9f6bc0539647ef::t_3407125f340a18 57
+streams/streamspage.cpp
+  s_9f6bc0539647ef::t_ca5cf345ed0d4b 123
+playlists/storedplaylistspage.h
+  s_9f6bc0539647ef::t_010e7fa291b040 78
+models/proxymodel.h
+  s_9f6bc0539647ef::t_90e753d15b1d65 35
+  s_9f6bc0539647ef::t_70c5b4ef51ddfd 61-65
+devices/synccollectionwidget.cpp
+  s_9f6bc0539647ef::t_87eed14c1f01e7 47
+models/proxymodel.cpp
+  s_9f6bc0539647ef::t_f2120ff9adcd0a 42
+playlists/storedplaylistspage.cpp
+  s_9f6bc0539647ef::t_984db05563cb22 431-435,439
+  s_9f6bc0539647ef::t_00656a1be8fe45 70
+devices/devicespage.cpp
+  s_9f6bc0539647ef::t_1a33cb4d294c50 87
+playlists/dynamicplaylistspage.cpp
+  s_9f6bc0539647ef::t_f6afb745310617 74
+playlists/smartplaylistspage.cpp
+  s_9f6bc0539647ef::t_417f9ce2391dcc 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "113cdf1ba7a46429e859aafc4a4b858b0f2d5cbc",
+  "prompts": {},
+  "sessions": {
+    "s_9f6bc0539647ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4721eb09-7430-4806-b270-4e020748af43",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
