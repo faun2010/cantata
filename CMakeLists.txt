@@ -875,10 +875,11 @@ if(APPLE)
     # Using macdeployqt from the official Qt download works.
     # With homebrew, the libraries are more entangled and it doesn't work.
     if(NOT MACDEPLOYQT_EXECUTABLE)
-        message(FATAL_ERROR "macdeployqt is required to package the macOS application")
+        message(WARNING "macdeployqt not found; macOS packaging/deploy will be skipped")
+    else()
+        configure_file(mac/deploy.cmake.in ${CMAKE_BINARY_DIR}/deploy-macos.cmake @ONLY)
+        install(SCRIPT ${CMAKE_BINARY_DIR}/deploy-macos.cmake)
     endif()
-    configure_file(mac/deploy.cmake.in ${CMAKE_BINARY_DIR}/deploy-macos.cmake @ONLY)
-    install(SCRIPT ${CMAKE_BINARY_DIR}/deploy-macos.cmake)
 endif()
 
 if(WIN32)
