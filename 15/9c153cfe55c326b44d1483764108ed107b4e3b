@@ -1,0 +1,29 @@
+support/searchterms.h
+  s_9f6bc0539647ef::t_8bb96afb170f33 9
+  s_9f6bc0539647ef::t_0e29726678dc34 84-119,122,125-137,139,145,152-156,168-171
+models/proxymodel.cpp
+  s_9f6bc0539647ef::t_740c6099104482 114
+tests/searchterms_test.cpp
+  s_9f6bc0539647ef::t_fc420e148d9369 16,30
+  s_9f6bc0539647ef::t_e60489de693bde 26-29,31-32
+  s_9f6bc0539647ef::t_33f426ca1a269f 33,44,48,55,58,65,71,77,83,94,98-115
+models/proxymodel.h
+  s_9f6bc0539647ef::t_806ee2398350c9 81
+  s_9f6bc0539647ef::t_f716d658a50556 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "159c153cfe55c326b44d1483764108ed107b4e3b",
+  "prompts": {},
+  "sessions": {
+    "s_9f6bc0539647ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4721eb09-7430-4806-b270-4e020748af43",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
