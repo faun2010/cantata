@@ -1,0 +1,24 @@
+tests/CMakeLists.txt
+  s_9f6bc0539647ef::t_f2d4cde3f0941e 53-62
+tests/searchterms_test.cpp
+  s_9f6bc0539647ef::t_247a433ea60c80 1-92
+support/searchterms.h
+  s_9f6bc0539647ef::t_8be522ed25baee 24-46,50,52
+  s_9f6bc0539647ef::t_bc713d1c9f0443 87,91-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "f87548ea939203cc57d032a972f4cdeae0c622c8",
+  "prompts": {},
+  "sessions": {
+    "s_9f6bc0539647ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4721eb09-7430-4806-b270-4e020748af43",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
