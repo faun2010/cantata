@@ -2,6 +2,22 @@
 # Build using an unpacked Qt SDK. Nothing is installed into system directories.
 set -euo pipefail
 
+app_only=false
+case "${1:-}" in
+    --app-only) app_only=true ;;
+    --help|-h)
+        echo "Usage: scripts/build-macos-local.sh [--app-only]"
+        echo "Build and verify Cantata.app, then package a drag-to-install DMG."
+        echo "Uses the project-local Qt SDK; does not install system packages."
+        exit 0 ;;
+    "") ;;
+    *) echo "Unknown option: $1" >&2; exit 2 ;;
+esac
+if [[ $# -gt 1 ]]; then
+    echo "Expected at most one option; use --help." >&2
+    exit 2
+fi
+
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 qt_dir="${CANTATA_QT_DIR:-$project_dir/build-deps/qt/6.10.3/macos}"
 build_dir="${CANTATA_BUILD_DIR:-$project_dir/build-macos}"
@@ -30,3 +46,6 @@ cmake --install "$build_dir" --prefix "$output_dir"
 python3 "$project_dir/scripts/check-macos-bundle.py" "$output_dir/Cantata.app"
 codesign --verify --deep --strict "$output_dir/Cantata.app"
 echo "App ready: $output_dir/Cantata.app"
+if [[ "$app_only" == false ]]; then
+    "$project_dir/scripts/package-macos-dmg.sh" "$output_dir/Cantata.app"
+fi
