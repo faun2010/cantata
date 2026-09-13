@@ -9,6 +9,9 @@ private Q_SLOTS:
 	void acceptsOnlyExactLastFmArtist();
 	void acceptsAliasOnlyWhenMusicBrainzMatchIsUnique();
 	void refusesAmbiguousMusicBrainzName();
+	void acceptsMotorheadDiacriticVariant();
+	void prefersExactMusicBrainzMatchOverDiacriticVariant();
+	void refusesAmbiguousDiacriticMusicBrainzName();
 	void verifiesMusicBrainzIdBeforeWikidataRelation();
 	void extractsCommonsP18AndDistinguishesRetryStates();
 	void normalizesUnicodeNames();
@@ -35,6 +38,28 @@ void ArtistImageProviderTest::refusesAmbiguousMusicBrainzName()
 	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(response, "John Williams").isEmpty());
 }
 
+void ArtistImageProviderTest::acceptsMotorheadDiacriticVariant()
+{
+	QByteArray response = R"({"artists":[{"id":"motor-id","score":100,"name":"Motörhead"}]})";
+	QCOMPARE(ArtistImageProvider::uniqueMusicBrainzArtistId(response, "Motorhead"), QString("motor-id"));
+	QCOMPARE(ArtistImageProvider::uniqueMusicBrainzArtistId(response, QString::fromUtf8("Moto\xCC\x88rhead")), QString("motor-id"));
+
+	QByteArray lastFm = R"(<lfm><artist><name>Motörhead</name><mbid>motor-id</mbid></artist></lfm>)";
+	QCOMPARE(ArtistImageProvider::lastFmMusicBrainzId(lastFm, "Motorhead"), QString("motor-id"));
+}
+
+void ArtistImageProviderTest::prefersExactMusicBrainzMatchOverDiacriticVariant()
+{
+	QByteArray response = R"({"artists":[{"id":"accented-id","score":100,"name":"Motörhead"},{"id":"exact-id","score":100,"name":"Motorhead"}]})";
+	QCOMPARE(ArtistImageProvider::uniqueMusicBrainzArtistId(response, "Motorhead"), QString("exact-id"));
+}
+
+void ArtistImageProviderTest::refusesAmbiguousDiacriticMusicBrainzName()
+{
+	QByteArray response = R"({"artists":[{"id":"motor-id-1","score":100,"name":"Motörhead"},{"id":"motor-id-2","score":100,"name":"Motōrhead"}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(response, "MOTORHEAD").isEmpty());
+}
+
 void ArtistImageProviderTest::verifiesMusicBrainzIdBeforeWikidataRelation()
 {
 	QByteArray response = R"({"id":"right-id","relations":[{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q255"}}]})";
@@ -54,6 +79,8 @@ void ArtistImageProviderTest::extractsCommonsP18AndDistinguishesRetryStates()
 void ArtistImageProviderTest::normalizesUnicodeNames()
 {
 	QCOMPARE(ArtistImageProvider::nameKey(QString::fromUtf8("Björk")), ArtistImageProvider::nameKey(QString::fromUtf8("Bjo\xCC\x88rk")));
+	QCOMPARE(ArtistImageProvider::diacriticKey(QString::fromUtf8("Motörhead")), ArtistImageProvider::diacriticKey("Motorhead"));
+	QVERIFY(ArtistImageProvider::diacriticKey(QString::fromUtf8("Søren")) != ArtistImageProvider::diacriticKey("Soren"));
 }
 
 void ArtistImageProviderTest::aggressiveNameKeyFolding()

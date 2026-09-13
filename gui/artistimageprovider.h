@@ -60,6 +60,21 @@ inline QString nameKey(const QString& name)
 	return filtered.toCaseFolded();
 }
 
+// Keep this deliberately narrower than compatibility matching: canonical
+// decompositions make Motörhead and Motorhead equivalent, while characters
+// without a canonical decomposition retain their distinct spelling.
+inline QString diacriticKey(const QString& name)
+{
+	QString result;
+	for (const QChar character : name.normalized(QString::NormalizationForm_D).simplified().toCaseFolded()) {
+		QChar::Category category = character.category();
+		if (category != QChar::Mark_NonSpacing && category != QChar::Mark_SpacingCombining && category != QChar::Mark_Enclosing) {
+			result.append(character);
+		}
+	}
+	return result;
+}
+
 inline QString lastFmMusicBrainzId(const QByteArray& data, const QString& requestedArtist)
 {
 	QXmlStreamReader doc(data);
@@ -83,7 +98,8 @@ inline QString lastFmMusicBrainzId(const QByteArray& data, const QString& reques
 				doc.skipCurrentElement();
 			}
 		}
-		return nameKey(name) == nameKey(requestedArtist) ? id : QString();
+		QString requested = nameKey(requestedArtist);
+		return nameKey(name) == requested || diacriticKey(name) == diacriticKey(requestedArtist) ? id : QString();
 	}
 	return QString();
 }
@@ -98,6 +114,9 @@ inline QString uniqueMusicBrainzArtistId(const QByteArray& data, const QString& 
 
 	QSet<QString> ids;
 	QString requested = nameKey(requestedArtist);
+	QString foldedRequested = diacriticKey(requestedArtist);
+	QSet<QString> foldedIds;
+	bool hasExactMatch = false;
 	for (const QVariant& value : response.value("artists").toList()) {
 		QVariantMap artist = value.toMap();
 		if (100 != artist.value("score").toInt()) {
@@ -109,16 +128,27 @@ inline QString uniqueMusicBrainzArtistId(const QByteArray& data, const QString& 
 			names << alias.toMap().value("name").toString();
 		}
 		for (const QString& name : names) {
-			if (nameKey(name) == requested) {
+			bool exact = nameKey(name) == requested;
+			bool folded = diacriticKey(name) == foldedRequested;
+			if (exact || folded) {
 				QString id = artist.value("id").toString();
 				if (!id.isEmpty()) {
-					ids.insert(id);
+					if (exact) {
+						ids.insert(id);
+						hasExactMatch = true;
+					}
+					else {
+						foldedIds.insert(id);
+					}
 				}
 				break;
 			}
 		}
 	}
-	return 1 == ids.size() ? *ids.constBegin() : QString();
+	if (hasExactMatch) {
+		return 1 == ids.size() ? *ids.constBegin() : QString();
+	}
+	return 1 == foldedIds.size() ? *foldedIds.constBegin() : QString();
 }
 
 inline QString wikiDataId(const QByteArray& data, const QString& expectedMusicBrainzId)
