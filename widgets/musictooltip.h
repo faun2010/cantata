@@ -3,7 +3,12 @@
 #define MUSIC_TOOLTIP_H
 
 #include "support/translationtext.h"
+#include <QPersistentModelIndex>
+#include <QPointer>
 #include <QTextDocument>
+
+class QAbstractItemView;
+class QHelpEvent;
 
 namespace MusicToolTip {
 
@@ -78,6 +83,37 @@ inline QString translatedHtml(const QString& originalHtml, const QString& transl
 	}
 	return QStringLiteral("<qt>") + html + originalHtml.mid(tableEnd + 8) + QStringLiteral("</qt>");
 }
+
+// Tracks the tooltip translation currently in flight for one delegate
+// instance, so a later TranslationService::translationReady signal can be
+// matched back to the row (and cursor position) it was requested for.
+struct PendingState {
+	QString source;
+	QString html;
+	QString context;
+	QPointer<QAbstractItemView> view;
+	QPersistentModelIndex index;
+
+	// Defined out-of-line (musictooltip.cpp) since clearing `view` needs a
+	// complete QAbstractItemView; keeping it there avoids forcing every
+	// includer of this header (e.g. tests that never touch PendingState) to
+	// also pull in <QAbstractItemView>.
+	void clear();
+};
+
+// Handles a QEvent::ToolTip help event for `index`. If its Qt::ToolTipRole
+// data is a music-details "<table>...", shows a cached/translated tooltip (or
+// the original text while a translation request is in flight), records
+// `pending` so a later translationReady signal can update it, and returns
+// true. Otherwise clears `pending` and returns false so the caller falls back
+// to default tooltip handling.
+bool showTranslatedTableTooltip(QHelpEvent* e, QAbstractItemView* view, const QModelIndex& index, PendingState& pending);
+
+// Call from a TranslationService::translationReady handler. Shows the
+// translated tooltip if `pending` is still current: same source/context, the
+// view is visible and active, the cursor is still over the same index, and
+// the index's tooltip data has not changed since the request was made.
+void handleTranslationReady(const QString& source, const QString& context, const QString& translation, PendingState& pending);
 
 }
 #endif

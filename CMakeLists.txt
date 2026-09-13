@@ -430,6 +430,7 @@ target_sources(
         widgets/playqueueview.cpp
         widgets/groupedview.cpp
         widgets/actionitemdelegate.cpp
+        widgets/musictooltip.cpp
         widgets/textbrowser.cpp
         widgets/volumeslider.cpp
         widgets/menubutton.cpp

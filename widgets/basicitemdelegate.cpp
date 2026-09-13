@@ -22,10 +22,12 @@
  */
 
 #include "basicitemdelegate.h"
+#include "network/translationservice.h"
 #include "support/gtkstyle.h"
 #include "support/utils.h"
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QHelpEvent>
 #include <QPainter>
 #include <QStyle>
 #include <QStyleOption>
@@ -66,6 +68,10 @@ BasicItemDelegate::BasicItemDelegate(QObject* p)
 		trackMouse = true;
 		p->installEventFilter(this);
 	}
+	connect(TranslationService::self(), &TranslationService::translationReady, this,
+	        [this](const QString& source, const QString& context, const QString& translation) {
+			MusicToolTip::handleTranslationReady(source, context, translation, pendingTooltip);
+		});
 }
 
 BasicItemDelegate::~BasicItemDelegate()
@@ -123,6 +129,14 @@ void BasicItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opt
 	case QStyleOptionViewItem::OnlyOne:
 		drawLine(painter, option.rect, col, true, true);
 	}
+}
+
+bool BasicItemDelegate::helpEvent(QHelpEvent* e, QAbstractItemView* view, const QStyleOptionViewItem& option, const QModelIndex& index)
+{
+	if (QEvent::ToolTip == e->type() && MusicToolTip::showTranslatedTableTooltip(e, view, index, pendingTooltip)) {
+		return true;
+	}
+	return QStyledItemDelegate::helpEvent(e, view, option, index);
 }
 
 bool BasicItemDelegate::eventFilter(QObject* object, QEvent* event)

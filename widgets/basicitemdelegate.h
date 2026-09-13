@@ -24,6 +24,7 @@
 #ifndef BASIC_ITEM_DELEGATE_H
 #define BASIC_ITEM_DELEGATE_H
 
+#include "musictooltip.h"
 #include <QStyledItemDelegate>
 
 class BasicItemDelegate : public QStyledItemDelegate {
@@ -32,6 +33,7 @@ public:
 	BasicItemDelegate(QObject* p);
 	~BasicItemDelegate() override;
 	void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
+	bool helpEvent(QHelpEvent* e, QAbstractItemView* view, const QStyleOptionViewItem& option, const QModelIndex& index) override;
 
 private:
 	bool eventFilter(QObject* object, QEvent* event) override;
@@ -39,6 +41,7 @@ private:
 protected:
 	bool trackMouse;
 	bool underMouse;
+	MusicToolTip::PendingState pendingTooltip;
 };
 
 #endif
