@@ -23,9 +23,41 @@ enum RetryState {
 	RetryExpired
 };
 
+// Escape special characters in a Lucene query phrase:
+// backslash and double quote must be escaped with a preceding backslash.
+inline QString luceneQuoted(const QString& s)
+{
+	QString escaped;
+	for (const QChar& c : s) {
+		if (c == '\\' || c == '"') {
+			escaped.append('\\');
+		}
+		escaped.append(c);
+	}
+	return escaped;
+}
+
+// Aggressively normalize a name for matching: decompose, drop combining marks,
+// keep only letters and digits, then case-fold. Handles accents, punctuation,
+// and symbols: "Motorhead" == "Motörhead", "Blink 182" == "blink-182",
+// "Ke$ha" gives "keha" (not "kesha", which is acceptable).
 inline QString nameKey(const QString& name)
 {
-	return name.normalized(QString::NormalizationForm_C).simplified().toCaseFolded();
+	// Decompose to separate base characters from combining marks
+	QString normalized = name.normalized(QString::NormalizationForm_KD);
+	QString filtered;
+	for (const QChar& c : normalized) {
+		// Keep letters and digits, skip marks and punctuation/symbols/whitespace
+		if (c.isLetter() || c.isDigit()) {
+			filtered.append(c);
+		}
+	}
+	// If the name contained only non-letter/digit characters, fall back to
+	// case-folded simplified form to preserve comparison sensibility
+	if (filtered.isEmpty()) {
+		return name.simplified().toCaseFolded();
+	}
+	return filtered.toCaseFolded();
 }
 
 inline QString lastFmMusicBrainzId(const QByteArray& data, const QString& requestedArtist)

@@ -853,7 +853,7 @@ void CoverDownloader::startMusicBrainzSearch(Job job)
 	}
 	QUrl url("https://musicbrainz.org/ws/2/artist");
 	QUrlQuery query;
-	query.addQueryItem("query", "artist:\"" + Covers::fixArtist(job.song.albumArtist()) + "\"");
+	query.addQueryItem("query", "artist:\"" + ArtistImageProvider::luceneQuoted(Covers::fixArtist(job.song.albumArtist())) + "\"");
 	query.addQueryItem("fmt", "json");
 	query.addQueryItem("limit", "5");
 	url.setQuery(query);

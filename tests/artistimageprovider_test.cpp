@@ -12,6 +12,8 @@ private Q_SLOTS:
 	void verifiesMusicBrainzIdBeforeWikidataRelation();
 	void extractsCommonsP18AndDistinguishesRetryStates();
 	void normalizesUnicodeNames();
+	void aggressiveNameKeyFolding();
+	void luceneQuotedEscaping();
 };
 
 void ArtistImageProviderTest::acceptsOnlyExactLastFmArtist()
@@ -52,6 +54,45 @@ void ArtistImageProviderTest::extractsCommonsP18AndDistinguishesRetryStates()
 void ArtistImageProviderTest::normalizesUnicodeNames()
 {
 	QCOMPARE(ArtistImageProvider::nameKey(QString::fromUtf8("Björk")), ArtistImageProvider::nameKey(QString::fromUtf8("Bjo\xCC\x88rk")));
+}
+
+void ArtistImageProviderTest::aggressiveNameKeyFolding()
+{
+	// Accents: Motorhead (plain) should match Motörhead (accented)
+	QCOMPARE(ArtistImageProvider::nameKey("Motorhead"), ArtistImageProvider::nameKey("Motörhead"));
+
+	// Numbers with spaces vs hyphens: Blink 182 should match blink-182
+	QCOMPARE(ArtistImageProvider::nameKey("Blink 182"), ArtistImageProvider::nameKey("blink-182"));
+
+	// Dollar sign: Ke$ha loses the dollar, giving "keha" != "kesha"
+	// This is documented as acceptable behavior
+	QString keha = ArtistImageProvider::nameKey("Ke$ha");
+	QString kesha = ArtistImageProvider::nameKey("Kesha");
+	QVERIFY(keha != kesha);  // They don't match, which is OK per the spec
+
+	// Symbols only should fall back to caseFolded simplified
+	QString symbolsOnly = ArtistImageProvider::nameKey("!!!");
+	QVERIFY(!symbolsOnly.isEmpty());  // Should not be empty; falls back to simplified().caseFolded()
+	QCOMPARE(symbolsOnly, QString("!!!").simplified().toCaseFolded());
+}
+
+void ArtistImageProviderTest::luceneQuotedEscaping()
+{
+	// Double quote should be escaped
+	QCOMPARE(ArtistImageProvider::luceneQuoted("\"Weird Al\" Yankovic"),
+	         QString("\\\"Weird Al\\\" Yankovic"));
+
+	// Backslash should be escaped
+	QCOMPARE(ArtistImageProvider::luceneQuoted("back\\slash"),
+	         QString("back\\\\slash"));
+
+	// Both quote and backslash
+	QCOMPARE(ArtistImageProvider::luceneQuoted("a\\\"b"),
+	         QString("a\\\\\\\"b"));
+
+	// Normal text unchanged
+	QCOMPARE(ArtistImageProvider::luceneQuoted("Normal Artist"),
+	         QString("Normal Artist"));
 }
 
 QTEST_MAIN(ArtistImageProviderTest)
