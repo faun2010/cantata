@@ -57,6 +57,13 @@ private:
 private:
 	int currentId;
 	QSet<QString> submittedValues;
+	// Number of MPD searchResponse replies still outstanding for currentId
+	// (including any additional searches issued once alternatives arrive).
+	// SearchModel::results() is only called once this reaches zero, so a
+	// multi-search Chinese query resets/re-sorts the view a single time.
+	int pendingReplies;
+	QList<Song> pendingResults;
+	QSet<QString> pendingFiles;
 };
 
 #endif

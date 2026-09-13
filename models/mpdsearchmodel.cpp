@@ -29,7 +29,7 @@
 #include <algorithm>
 
 MpdSearchModel::MpdSearchModel(QObject* parent)
-	: SearchModel(parent), currentId(0)
+	: SearchModel(parent), currentId(0), pendingReplies(0)
 {
 	connect(this, SIGNAL(getRating(QString)), MPDConnection::self(), SLOT(getRating(QString)));
 	connect(this, SIGNAL(search(QString, QString, int)), MPDConnection::self(), SLOT(search(QString, QString, int)));
@@ -75,6 +75,9 @@ void MpdSearchModel::clear()
 {
 	currentId++;
 	submittedValues.clear();
+	pendingReplies = 0;
+	pendingResults.clear();
+	pendingFiles.clear();
 	SearchModel::clear();
 	// Cancelled requests are ignored by searchFinished(), so cancellation
 	// itself must finish the view's busy state.
@@ -104,19 +107,21 @@ void MpdSearchModel::searchFinished(int id, const QList<Song>& result)
 		return;
 	}
 
-	QList<Song> combined = songList;
-	QSet<QString> files;
-	for (const Song& song : combined) {
-		files.insert(song.file);
-	}
 	for (const Song& song : result) {
-		if (!files.contains(song.file)) {
-			files.insert(song.file);
-			combined.append(song);
+		if (!pendingFiles.contains(song.file)) {
+			pendingFiles.insert(song.file);
+			pendingResults.append(song);
 		}
 	}
-	std::sort(combined.begin(), combined.end());
-	results(combined);
+	if (pendingReplies > 0) {
+		--pendingReplies;
+	}
+	// Only reset/re-sort the view once every outstanding reply for this
+	// search (including any late alternatives) has been accounted for.
+	if (0 == pendingReplies) {
+		std::sort(pendingResults.begin(), pendingResults.end());
+		results(pendingResults);
+	}
 }
 
 bool MpdSearchModel::expandsCurrentSearch() const
@@ -134,6 +139,7 @@ void MpdSearchModel::submitSearches(const QStringList& values)
 		const QString candidate = value.trimmed();
 		if (!candidate.isEmpty() && !submittedValues.contains(candidate)) {
 			submittedValues.insert(candidate);
+			++pendingReplies;
 			emit search(currentKey, candidate, currentId);
 		}
 	}
@@ -142,7 +148,14 @@ void MpdSearchModel::submitSearches(const QStringList& values)
 void MpdSearchModel::searchAlternativesReady(const QString& term)
 {
 	if (term == currentValue && expandsCurrentSearch()) {
+		// The initial wave may already have finished (and hidden the
+		// spinner) before these alternatives arrived, so re-show it if
+		// this wave actually adds new outstanding searches.
+		bool wasIdle = 0 == pendingReplies;
 		submitSearches(MusicSearch::self()->alternatives(term));
+		if (wasIdle && pendingReplies > 0) {
+			emit searching();
+		}
 	}
 }
 
