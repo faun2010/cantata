@@ -1,0 +1,21 @@
+mac/deploy.cmake.in
+  s_9f6bc0539647ef::t_3154305ebd0f1f 36-43
+CMakeLists.txt
+  s_9f6bc0539647ef::t_a0979a049494aa 878-881
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "64b8aed19324381a45a5f1f7bbeacafc1857cc22",
+  "prompts": {},
+  "sessions": {
+    "s_9f6bc0539647ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4721eb09-7430-4806-b270-4e020748af43",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
