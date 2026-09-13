@@ -45,25 +45,25 @@ Q_SIGNALS:
 private Q_SLOTS:
 	void searchFinished(int id, const QList<Song>& result);
 	void searchAlternativesReady(const QString& term);
+	void searchAlternativesFinished(const QString& term);
+	void submitSearches(const QStringList& values);
 	void coverLoaded(const Song& song, int s);
 	void ratingResult(const QString& file, quint8 r);
 
 private:
 	void clearItems();
-	void submitSearches(const QStringList& values);
+	void finishIfComplete();
 	bool expandsCurrentSearch() const;
 	const Song* toSong(const QModelIndex& index) const { return index.isValid() ? static_cast<const Song*>(index.internalPointer()) : nullptr; }
 
 private:
 	int currentId;
+	int pendingSearches;
+	bool alternativesPending;
+	bool startingSearch;
+	bool busy;
 	QSet<QString> submittedValues;
-	// Number of MPD searchResponse replies still outstanding for currentId
-	// (including any additional searches issued once alternatives arrive).
-	// SearchModel::results() is only called once this reaches zero, so a
-	// multi-search Chinese query resets/re-sorts the view a single time.
-	int pendingReplies;
-	QList<Song> pendingResults;
-	QSet<QString> pendingFiles;
+	QSet<QString> resultFiles;
 };
 
 #endif

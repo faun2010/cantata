@@ -81,6 +81,8 @@ Q_SIGNALS:
 protected:
 	virtual Song& fixPath(Song& s) const { return s; }
 	void results(const QList<Song>& songs);
+	void appendResults(const QList<Song>& songs);
+	void updateStats();
 	const Song* toSong(const QModelIndex& index) const { return index.isValid() ? static_cast<const Song*>(index.internalPointer()) : nullptr; }
 
 protected:

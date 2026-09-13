@@ -12,8 +12,9 @@ MusicSearch::MusicSearch(QObject* parent, TranslationService* service)
 {
 	connect(translator, &TranslationService::translationReady, this,
 	        [this](const QString& source, const QString& context, const QString& response) {
-		if (context == searchContext && SearchTerms::alternatives(source, response).size() > 1) {
-			emit alternativesReady(source);
+		if (context == searchContext) {
+			if (SearchTerms::alternatives(source, response).size() > 1) emit alternativesReady(source);
+			emit alternativesFinished(source);
 		}
 	});
 }
@@ -29,6 +30,32 @@ QStringList MusicSearch::alternatives(const QString& term)
 		return { term };
 	}
 	return SearchTerms::alternatives(term, translator->translate(term, searchContext));
+}
+
+bool MusicSearch::isPending(const QString& term) const
+{
+	return translator->isPending(term, searchContext);
+}
+
+void MusicSearch::setQuery(QObject* owner, const QStringList& terms)
+{
+	if (!queryTerms.contains(owner)) {
+		connect(owner, &QObject::destroyed, this, [this, owner]() {
+			setQuery(owner, {});
+			queryTerms.remove(owner);
+		});
+	}
+	const QSet<QString> previous = queryTerms.value(owner);
+	QSet<QString> current;
+	for (const QString& term : terms) if (containsChinese(term)) current.insert(term);
+	queryTerms.insert(owner, current);
+	for (const QString& old : previous - current) {
+		bool needed = false;
+		for (auto it = queryTerms.constBegin(); it != queryTerms.constEnd(); ++it) {
+			if (it.value().contains(old)) { needed = true; break; }
+		}
+		if (!needed) translator->cancel(old, searchContext);
+	}
 }
 
 #include "moc_musicsearch.cpp"

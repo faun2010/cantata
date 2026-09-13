@@ -3,6 +3,8 @@
 #define MUSIC_SEARCH_H
 
 #include <QObject>
+#include <QHash>
+#include <QSet>
 #include <QStringList>
 
 class TranslationService;
@@ -16,12 +18,16 @@ public:
 	// Always includes the original term. Cache misses return immediately and
 	// notify subscribers when multilingual alternatives become available.
 	QStringList alternatives(const QString& term);
+	void setQuery(QObject* owner, const QStringList& terms);
+	bool isPending(const QString& term) const;
 
 Q_SIGNALS:
 	void alternativesReady(const QString& term);
+	void alternativesFinished(const QString& term);
 
 private:
 	TranslationService* translator;
+	QHash<QObject*, QSet<QString>> queryTerms;
 };
 
 #endif

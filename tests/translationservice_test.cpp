@@ -1,11 +1,14 @@
 #include "network/translationservice.h"
 #include <QFile>
 #include <QFileInfo>
+#include <QElapsedTimer>
 #include <QHostAddress>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QNetworkProxy>
+#include <QNetworkProxyFactory>
+#include <QNetworkProxyQuery>
 #include <QPointer>
 #include <QSettings>
 #include <QSignalSpy>
@@ -20,9 +23,22 @@
 class TranslationServiceTest : public QObject {
 	Q_OBJECT
 
+	class RecordingProxyFactory : public QNetworkProxyFactory {
+	public:
+		RecordingProxyFactory(int* calls, quint16 port) : callCount(calls), proxyPort(port) {}
+		QList<QNetworkProxy> queryProxy(const QNetworkProxyQuery&) override
+		{
+			++*callCount;
+			return { QNetworkProxy(QNetworkProxy::HttpProxy, QLatin1String("127.0.0.1"), proxyPort) };
+		}
+	private:
+		int* callCount;
+		quint16 proxyPort;
+	};
+
 private:
 	static void writeConfig(const QString& path, const QUrl& url, const QString& model = QLatin1String("qwen3.8:27b"), int cooldown = 30,
-	                        int timeout = 2000, int maxConcurrent = 1, int maxQueued = 16)
+	                        int timeout = 2000, int maxConcurrent = 1, int maxQueued = 16, int searchTimeout = 30000)
 	{
 		QSettings settings(path, QSettings::IniFormat);
 		settings.beginGroup(QLatin1String("Translation"));
@@ -33,6 +49,7 @@ private:
 		settings.setValue(QLatin1String("targetLanguage"), QLatin1String("Simplified Chinese"));
 		settings.setValue(QLatin1String("promptVersion"), QLatin1String("2"));
 		settings.setValue(QLatin1String("timeoutMs"), timeout);
+		settings.setValue(QLatin1String("searchTimeoutMs"), searchTimeout);
 		settings.setValue(QLatin1String("cooldownSeconds"), cooldown);
 		settings.setValue(QLatin1String("maxConcurrentRequests"), maxConcurrent);
 		settings.setValue(QLatin1String("maxQueuedRequests"), maxQueued);
@@ -106,6 +123,7 @@ private Q_SLOTS:
 		// every tooltip hover, search term and artist biography without opt-in.
 		QVERIFY(!settings.value(QLatin1String("enabled")).toBool());
 		QCOMPARE(settings.value(QLatin1String("timeoutMs")).toInt(), 180000);
+		QCOMPARE(settings.value(QLatin1String("searchTimeoutMs")).toInt(), 30000);
 		QCOMPARE(settings.value(QLatin1String("maxConcurrentRequests")).toInt(), 1);
 		QCOMPARE(settings.value(QLatin1String("maxQueuedRequests")).toInt(), 16);
 #ifdef Q_OS_UNIX
@@ -261,12 +279,14 @@ private Q_SLOTS:
 		for (int i = 0; i < 5; ++i) {
 			service.translate(QString::fromLatin1("text-%1").arg(i), QString::fromLatin1("context-%1").arg(i));
 		}
-		// Only the first request is in flight; the connection-refused failure
-		// on it must drop the other four queued requests immediately rather
-		// than let each fail serially against the same dead endpoint.
-		QTRY_COMPARE(ready.count(), 1);
+		// Every dropped request must finish so search owners can stop waiting.
+		QTRY_COMPARE(ready.count(), 5);
+		for (const QList<QVariant>& result : ready) {
+			QCOMPARE(result.at(2).toString(), result.at(0).toString());
+			QVERIFY(!service.isPending(result.at(0).toString(), result.at(1).toString()));
+		}
 		QTest::qWait(150);
-		QCOMPARE(ready.count(), 1);
+		QCOMPARE(ready.count(), 5);
 	}
 
 	void limitsConcurrencyAndQueueSize()
@@ -286,8 +306,12 @@ private Q_SLOTS:
 		}
 		QTest::qWait(30);
 		QCOMPARE(requestCount, 1);
-		QTRY_COMPARE(ready.count(), 4);
+		QTRY_COMPARE(ready.count(), 8);
 		QCOMPARE(requestCount, 4);
+		QSet<QString> sources;
+		for (const QList<QVariant>& result : ready) sources.insert(result.at(0).toString());
+		QCOMPARE(sources.size(), 8);
+		for (int i = 0; i < 8; ++i) QVERIFY(sources.contains(QString::fromLatin1("text-%1").arg(i)));
 	}
 
 	void prefixSupersedesQueuedAndInFlightRequests()
@@ -408,6 +432,76 @@ private Q_SLOTS:
 		QCOMPARE(ready.count(), 1);
 	}
 
+	void cancelRemovesRunningAndQueuedRequests()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		int requestCount = 0;
+		serve(server, requestCount, QByteArrayLiteral("{\"response\":\"translated\"}"), 200, 300);
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		writeConfig(config, serverUrl(server), QLatin1String("model"), 30, 2000, 1, 4);
+		service.reloadConfiguration();
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		service.translate(QLatin1String("running"), QLatin1String("context"));
+		QTRY_COMPARE(requestCount, 1);
+		service.translate(QLatin1String("queued"), QLatin1String("context"));
+		QVERIFY(service.isPending(QLatin1String("running"), QLatin1String("context")));
+		QVERIFY(service.isPending(QLatin1String("queued"), QLatin1String("context")));
+		service.cancel(QLatin1String("running"), QLatin1String("context"));
+		service.cancel(QLatin1String("queued"), QLatin1String("context"));
+		QVERIFY(!service.isPending(QLatin1String("running"), QLatin1String("context")));
+		QVERIFY(!service.isPending(QLatin1String("queued"), QLatin1String("context")));
+		QTest::qWait(450);
+		QCOMPARE(ready.count(), 0);
+		QCOMPARE(requestCount, 1);
+	}
+
+	void searchUsesTheLowerTimeout()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		int requestCount = 0;
+		serve(server, requestCount, QByteArrayLiteral("{\"response\":\"[\\\"source\\\",\\\"translated\\\"]\"}"), 200, 500);
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		writeConfig(config, serverUrl(server), QLatin1String("model"), 30, 1000, 1, 4, 100);
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		QElapsedTimer elapsed;
+		elapsed.start();
+		service.translate(QLatin1String("source"), QLatin1String("music-search-v1"));
+		QTRY_COMPARE(ready.count(), 1);
+		QVERIFY2(elapsed.elapsed() < 400, qPrintable(QString::fromLatin1("elapsed %1 ms").arg(elapsed.elapsed())));
+		QCOMPARE(requestCount, 1);
+	}
+
+	void connectionRefusedCoolsEndpointButKeepsCacheReadable()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		int requestCount = 0;
+		serve(server, requestCount, QByteArrayLiteral("{\"response\":\"cached translation\"}"));
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		writeConfig(config, serverUrl(server));
+		service.reloadConfiguration();
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		service.translate(QLatin1String("cached source"), QLatin1String("context"));
+		QTRY_COMPARE(ready.count(), 1);
+		const quint16 port = server.serverPort();
+		server.close();
+		service.translate(QLatin1String("failed source"), QLatin1String("context"));
+		QTRY_COMPARE(ready.count(), 2);
+		QVERIFY(server.listen(QHostAddress::LocalHost, port));
+		QCOMPARE(service.translate(QLatin1String("cached source"), QLatin1String("context")), QLatin1String("cached translation"));
+		QCOMPARE(service.translate(QLatin1String("another source"), QLatin1String("context")), QLatin1String("another source"));
+		QTest::qWait(100);
+		QCOMPARE(requestCount, 1);
+	}
+
 	void requestsGoThroughInjectedNetworkAccessManager()
 	{
 		QTemporaryDir temporary;
@@ -430,6 +524,25 @@ private Q_SLOTS:
 		// The reply came through the injected manager, not the service's own.
 		QCOMPARE(injectedFinished.count(), 1);
 		QCOMPARE(requestCount, 1);
+	}
+
+	void defaultNetworkManagerUsesApplicationProxyFactory()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		int requestCount = 0;
+		serve(server, requestCount, QByteArrayLiteral("{\"response\":\"translated\"}"));
+		int proxyQueries = 0;
+		QNetworkProxyFactory::setApplicationProxyFactory(new RecordingProxyFactory(&proxyQueries, server.serverPort()));
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		writeConfig(config, QUrl(QLatin1String("http://example.invalid")));
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		service.translate(QLatin1String("source"), QLatin1String("context"));
+		QTRY_COMPARE(ready.count(), 1);
+		QVERIFY(proxyQueries > 0);
+		QNetworkProxy::setApplicationProxy(QNetworkProxy::NoProxy);
 	}
 
 	void zzDisabledNetworkStillReadsCache()

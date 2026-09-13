@@ -112,43 +112,30 @@ inline QString uniqueMusicBrainzArtistId(const QByteArray& data, const QString& 
 		return QString();
 	}
 
-	QSet<QString> ids;
-	QString requested = nameKey(requestedArtist);
-	QString foldedRequested = diacriticKey(requestedArtist);
-	QSet<QString> foldedIds;
-	bool hasExactMatch = false;
+	QSet<QString> exactIds;
+	QSet<QString> compatibleIds;
+	const QString requested = requestedArtist.normalized(QString::NormalizationForm_C).simplified().toCaseFolded();
 	for (const QVariant& value : response.value("artists").toList()) {
-		QVariantMap artist = value.toMap();
-		if (100 != artist.value("score").toInt()) {
-			continue;
-		}
-		QStringList names;
-		names << artist.value("name").toString();
+		const QVariantMap artist = value.toMap();
+		if (100 != artist.value("score").toInt()) continue;
+		const QString id = artist.value("id").toString();
+		if (id.isEmpty()) continue;
+		QStringList names { artist.value("name").toString() };
 		for (const QVariant& alias : artist.value("aliases").toList()) {
 			names << alias.toMap().value("name").toString();
 		}
 		for (const QString& name : names) {
-			bool exact = nameKey(name) == requested;
-			bool folded = diacriticKey(name) == foldedRequested;
-			if (exact || folded) {
-				QString id = artist.value("id").toString();
-				if (!id.isEmpty()) {
-					if (exact) {
-						ids.insert(id);
-						hasExactMatch = true;
-					}
-					else {
-						foldedIds.insert(id);
-					}
-				}
-				break;
+			// Prefer the actual spelling before applying compatibility folding.
+			if (name.normalized(QString::NormalizationForm_C).simplified().toCaseFolded() == requested) {
+				exactIds.insert(id);
+			}
+			if (nameKey(name) == nameKey(requestedArtist) || diacriticKey(name) == diacriticKey(requestedArtist)) {
+				compatibleIds.insert(id);
 			}
 		}
 	}
-	if (hasExactMatch) {
-		return 1 == ids.size() ? *ids.constBegin() : QString();
-	}
-	return 1 == foldedIds.size() ? *foldedIds.constBegin() : QString();
+	const QSet<QString>& ids = exactIds.isEmpty() ? compatibleIds : exactIds;
+	return ids.size() == 1 ? *ids.constBegin() : QString();
 }
 
 inline QString wikiDataId(const QByteArray& data, const QString& expectedMusicBrainzId)

@@ -110,6 +110,7 @@ bool ProxyModel::update(const QString& txt)
 		filterStrings.append(str);
 	}
 
+	MusicSearch::self()->setQuery(this, filterStrings);
 	for (const QString& term : filterStrings) {
 		filterAlternatives.append(SearchTerms::prepare({ MusicSearch::self()->alternatives(term) }).first());
 	}

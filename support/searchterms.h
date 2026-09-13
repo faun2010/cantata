@@ -180,7 +180,7 @@ inline QString ftsAlternatives(const QStringList& alternatives)
 		while (matches.hasNext()) words.append(matches.next().captured());
 		if (!words.isEmpty()) phrases.append(QLatin1Char('"') + words.join(QLatin1Char(' ')) + QStringLiteral("*\""));
 	}
-	return phrases.isEmpty() ? QString() : QLatin1Char('(') + phrases.join(QStringLiteral(" OR ")) + QLatin1Char(')');
+	return phrases.join(QStringLiteral(" OR "));
 }
 
 }

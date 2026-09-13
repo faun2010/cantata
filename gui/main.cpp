@@ -52,6 +52,7 @@
 #include "context/ultimatelyricsprovider.h"
 #include "http/httpserver.h"
 #include "network/networkaccessmanager.h"
+#include "network/networkproxyfactory.h"
 #include "network/translationservice.h"
 #include "streams/streamfetcher.h"
 #include "tags/taghelperiface.h"
@@ -393,6 +394,11 @@ int main(int argc, char* argv[])
 	if (cmdLineParser.isSet(noNetworkOption)) {
 		// Also disables TranslationService's network access.
 		NetworkAccessManager::disableNetworkAccess();
+	}
+	else {
+		// All QNetworkAccessManager instances, including the translation service,
+		// use this application-level proxy factory from their first request.
+		NetworkProxyFactory::self();
 	}
 
 	// Route translation requests through the shared network access manager

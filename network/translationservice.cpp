@@ -125,6 +125,7 @@ void TranslationService::createDefaultConfiguration() const
 	settings.setValue(QLatin1String("targetLanguage"), QLatin1String(defaultLanguage));
 	settings.setValue(QLatin1String("promptVersion"), QLatin1String(defaultPromptVersion));
 	settings.setValue(QLatin1String("timeoutMs"), 180000);
+	settings.setValue(QLatin1String("searchTimeoutMs"), 30000);
 	settings.setValue(QLatin1String("cooldownSeconds"), 30);
 	settings.setValue(QLatin1String("maxMemoryEntries"), 512);
 	settings.setValue(QLatin1String("maxConcurrentRequests"), 1);
@@ -156,6 +157,7 @@ void TranslationService::reloadConfiguration()
 	targetLanguage = settings.value(QLatin1String("targetLanguage"), QLatin1String(defaultLanguage)).toString().trimmed();
 	promptVersion = settings.value(QLatin1String("promptVersion"), QLatin1String(defaultPromptVersion)).toString().trimmed();
 	timeoutMs = qBound(100, settings.value(QLatin1String("timeoutMs"), 180000).toInt(), 900000);
+	searchTimeoutMs = qBound(100, settings.value(QLatin1String("searchTimeoutMs"), 30000).toInt(), 900000);
 	cooldownSeconds = qBound(1, settings.value(QLatin1String("cooldownSeconds"), 30).toInt(), 3600);
 	maxMemoryEntries = qBound(1, settings.value(QLatin1String("maxMemoryEntries"), 512).toInt(), 10000);
 	maxConcurrentRequests = qBound(1, settings.value(QLatin1String("maxConcurrentRequests"), 1).toInt(), 8);
@@ -272,15 +274,50 @@ QString TranslationService::translate(const QString& source, const QString& cont
 	}
 	else if (maxQueuedRequests > 0) {
 		while (queuedRequests.size() >= maxQueuedRequests) {
-			const Request dropped = queuedRequests.takeFirst();
+			int index = 0;
+			while (index < queuedRequests.size() && queuedRequests.at(index).context == QLatin1String("music-search-v1")) ++index;
+			if (index == queuedRequests.size()) index = queuedRequests.size() - 1;
+			const Request dropped = queuedRequests.takeAt(index);
 			pendingTokens.remove(dropped.pendingToken);
+			QTimer::singleShot(0, this, [this, dropped]() {
+				if (dropped.generation == configurationGeneration && !isPending(dropped.source, dropped.context)) {
+					emit translationReady(dropped.source, dropped.context, dropped.source);
+				}
+			});
 		}
-		queuedRequests.append(request);
+		if (context == QLatin1String("music-search-v1")) queuedRequests.prepend(request);
+		else queuedRequests.append(request);
 	}
 	else {
 		pendingTokens.remove(pendingToken);
 	}
 	return source;
+}
+
+bool TranslationService::isPending(const QString& source, const QString& context) const
+{
+	return pendingTokens.contains(QString::number(configurationGeneration) + QLatin1Char(':') + cacheKey(source, context));
+}
+
+void TranslationService::cancel(const QString& source, const QString& context)
+{
+	const QString key = cacheKey(source, context);
+	for (int index = queuedRequests.size() - 1; index >= 0; --index) {
+		if (queuedRequests.at(index).key == key) pendingTokens.remove(queuedRequests.takeAt(index).pendingToken);
+	}
+	const auto replies = requests.keys();
+	for (QNetworkReply* reply : replies) {
+		if (requests.value(reply).key != key) continue;
+		const Request request = requests.take(reply);
+		pendingTokens.remove(request.pendingToken);
+		if (request.timer) request.timer->stop();
+		disconnect(reply, &QNetworkReply::finished, this, &TranslationService::requestFinished);
+		reply->abort();
+		reply->deleteLater();
+	}
+	// The caller may be cancelling several obsolete terms before submitting
+	// their replacement. Do not start another obsolete term in that interval.
+	QTimer::singleShot(0, this, &TranslationService::startQueuedRequests);
 }
 
 QString TranslationService::plainTextToHtml(QString text)
@@ -359,7 +396,7 @@ void TranslationService::startRequest(Request pending)
 	pending.timer = new QTimer(reply);
 	pending.timer->setSingleShot(true);
 	connect(pending.timer, &QTimer::timeout, this, [this, reply]() { finishRequest(reply, true); });
-	pending.timer->start(timeoutMs);
+	pending.timer->start(pending.context == QLatin1String("music-search-v1") ? qMin(timeoutMs, searchTimeoutMs) : timeoutMs);
 	requests.insert(reply, pending);
 }
 
@@ -388,11 +425,13 @@ void TranslationService::startQueuedRequests()
 {
 	while (requests.size() < maxConcurrentRequests && !queuedRequests.isEmpty()) {
 		Request request = queuedRequests.takeFirst();
-		if (request.generation == configurationGeneration) {
+		if (request.generation == configurationGeneration && translationNetworkAccessEnabled
+		    && endpointUnavailableUntil <= QDateTime::currentMSecsSinceEpoch()) {
 			startRequest(request);
 		}
 		else {
 			pendingTokens.remove(request.pendingToken);
+			if (request.generation == configurationGeneration) emit translationReady(request.source, request.context, request.source);
 		}
 	}
 }
@@ -409,8 +448,8 @@ void TranslationService::finishRequest(QNetworkReply* reply, bool timedOut)
 	const Request request = requests.take(reply);
 	pendingTokens.remove(request.pendingToken);
 	if (request.timer) request.timer->stop();
-	if (timedOut && reply->isRunning()) reply->abort();
 	disconnect(reply, &QNetworkReply::finished, this, &TranslationService::requestFinished);
+	if (timedOut && reply->isRunning()) reply->abort();
 
 	if (request.superseded) {
 		// Aborted because a newer, more specific request (e.g. a later IME
@@ -436,15 +475,13 @@ void TranslationService::finishRequest(QNetworkReply* reply, bool timedOut)
 			}
 		}
 	}
-	else if (!timedOut && isEndpointUnreachableError(reply->error())) {
+	else if (!timedOut && request.generation == configurationGeneration && isEndpointUnreachableError(reply->error())) {
 		// The endpoint itself is unreachable (refused, not found, timed out
 		// at the transport level, ...) rather than returning an HTTP error or
 		// bad content. Fail fast for every context for a while instead of
 		// letting each (source, context) pair queue up its own doomed
 		// connection attempt.
 		endpointUnavailableUntil = QDateTime::currentMSecsSinceEpoch() + endpointCooldownMs;
-		for (int i = 0; i < queuedRequests.size(); ++i) pendingTokens.remove(queuedRequests.at(i).pendingToken);
-		queuedRequests.clear();
 	}
 
 	// A malformed search response must not permanently poison the cache.

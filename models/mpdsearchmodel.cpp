@@ -29,7 +29,7 @@
 #include <algorithm>
 
 MpdSearchModel::MpdSearchModel(QObject* parent)
-	: SearchModel(parent), currentId(0), pendingReplies(0)
+	: SearchModel(parent), currentId(0), pendingSearches(0), alternativesPending(false), startingSearch(false), busy(false)
 {
 	connect(this, SIGNAL(getRating(QString)), MPDConnection::self(), SLOT(getRating(QString)));
 	connect(this, SIGNAL(search(QString, QString, int)), MPDConnection::self(), SLOT(search(QString, QString, int)));
@@ -37,10 +37,12 @@ MpdSearchModel::MpdSearchModel(QObject* parent)
 	connect(MPDConnection::self(), SIGNAL(rating(QString, quint8)), SLOT(ratingResult(QString, quint8)));
 	connect(Covers::self(), SIGNAL(loaded(Song, int)), this, SLOT(coverLoaded(Song, int)));
 	connect(MusicSearch::self(), &MusicSearch::alternativesReady, this, &MpdSearchModel::searchAlternativesReady);
+	connect(MusicSearch::self(), &MusicSearch::alternativesFinished, this, &MpdSearchModel::searchAlternativesFinished);
 }
 
 MpdSearchModel::~MpdSearchModel()
 {
+	MusicSearch::self()->setQuery(this, {});
 }
 
 QVariant MpdSearchModel::data(const QModelIndex& index, int role) const
@@ -74,14 +76,17 @@ QVariant MpdSearchModel::data(const QModelIndex& index, int role) const
 void MpdSearchModel::clear()
 {
 	currentId++;
+	pendingSearches = 0;
+	alternativesPending = false;
+	startingSearch = false;
 	submittedValues.clear();
-	pendingReplies = 0;
-	pendingResults.clear();
-	pendingFiles.clear();
+	resultFiles.clear();
+	MusicSearch::self()->setQuery(this, {});
 	SearchModel::clear();
-	// Cancelled requests are ignored by searchFinished(), so cancellation
-	// itself must finish the view's busy state.
-	emit searched();
+	if (busy) {
+		busy = false;
+		emit searched();
+	}
 }
 
 void MpdSearchModel::search(const QString& key, const QString& value)
@@ -97,8 +102,23 @@ void MpdSearchModel::search(const QString& key, const QString& value)
 	currentKey = key;
 	currentValue = value;
 	currentId++;
+	startingSearch = true;
+	busy = true;
 	emit searching();
-	submitSearches(expandsCurrentSearch() ? MusicSearch::self()->alternatives(value) : QStringList(value));
+	if (expandsCurrentSearch()) {
+		// The literal query is useful immediately and must not wait for expansion.
+		submitSearches({value});
+		MusicSearch::self()->setQuery(this, {value});
+		const QStringList values = MusicSearch::self()->alternatives(value);
+		alternativesPending = MusicSearch::self()->isPending(value);
+		submitSearches(values);
+	}
+	else {
+		MusicSearch::self()->setQuery(this, {});
+		submitSearches({value});
+	}
+	startingSearch = false;
+	finishIfComplete();
 }
 
 void MpdSearchModel::searchFinished(int id, const QList<Song>& result)
@@ -106,22 +126,17 @@ void MpdSearchModel::searchFinished(int id, const QList<Song>& result)
 	if (id != currentId) {
 		return;
 	}
+	if (pendingSearches > 0) --pendingSearches;
 
+	QList<Song> additions;
 	for (const Song& song : result) {
-		if (!pendingFiles.contains(song.file)) {
-			pendingFiles.insert(song.file);
-			pendingResults.append(song);
+		if (!resultFiles.contains(song.file)) {
+			resultFiles.insert(song.file);
+			additions.append(song);
 		}
 	}
-	if (pendingReplies > 0) {
-		--pendingReplies;
-	}
-	// Only reset/re-sort the view once every outstanding reply for this
-	// search (including any late alternatives) has been accounted for.
-	if (0 == pendingReplies) {
-		std::sort(pendingResults.begin(), pendingResults.end());
-		results(pendingResults);
-	}
+	appendResults(additions);
+	finishIfComplete();
 }
 
 bool MpdSearchModel::expandsCurrentSearch() const
@@ -135,27 +150,37 @@ bool MpdSearchModel::expandsCurrentSearch() const
 
 void MpdSearchModel::submitSearches(const QStringList& values)
 {
+	QStringList candidates;
 	for (const QString& value : values) {
 		const QString candidate = value.trimmed();
 		if (!candidate.isEmpty() && !submittedValues.contains(candidate)) {
 			submittedValues.insert(candidate);
-			++pendingReplies;
-			emit search(currentKey, candidate, currentId);
+			candidates.append(candidate);
 		}
+	}
+	pendingSearches += candidates.size();
+	for (const QString& candidate : candidates) emit search(currentKey, candidate, currentId);
+}
+
+void MpdSearchModel::searchAlternativesFinished(const QString& term)
+{
+	if (term != currentValue || !expandsCurrentSearch()) return;
+	alternativesPending = false;
+	finishIfComplete();
+}
+
+void MpdSearchModel::finishIfComplete()
+{
+	if (!startingSearch && busy && pendingSearches == 0 && !alternativesPending) {
+		busy = false;
+		emit searched();
 	}
 }
 
 void MpdSearchModel::searchAlternativesReady(const QString& term)
 {
 	if (term == currentValue && expandsCurrentSearch()) {
-		// The initial wave may already have finished (and hidden the
-		// spinner) before these alternatives arrived, so re-show it if
-		// this wave actually adds new outstanding searches.
-		bool wasIdle = 0 == pendingReplies;
 		submitSearches(MusicSearch::self()->alternatives(term));
-		if (wasIdle && pendingReplies > 0) {
-			emit searching();
-		}
 	}
 }
 

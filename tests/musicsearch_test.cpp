@@ -78,7 +78,7 @@ class MusicSearchTest : public QObject {
 		});
 	}
 
-	static QStringList ftsMatches(const QString& expression, const QStringList& rows, bool* succeeded)
+	static QStringList ftsMatches(const QStringList& expressions, const QStringList& rows, bool* succeeded)
 	{
 		const QString connection = QLatin1String("music-search-") + QUuid::createUuid().toString();
 		QStringList matches;
@@ -100,8 +100,12 @@ class MusicSearchTest : public QObject {
 				}
 			}
 			if (ok) {
-				query.prepare(QLatin1String("SELECT title FROM docs WHERE docs MATCH ? ORDER BY rowid"));
-				query.addBindValue(expression);
+				QStringList clauses;
+				for (int i = 0; i < expressions.size(); ++i)
+					clauses.append(QLatin1String("rowid IN (SELECT docid FROM docs WHERE docs MATCH ?)"));
+				query.prepare(QLatin1String("SELECT title FROM docs WHERE ") + clauses.join(QLatin1String(" AND "))
+				              + QLatin1String(" ORDER BY rowid"));
+				for (const QString& expression : expressions) query.addBindValue(QLatin1Char('\'') + expression + QLatin1Char('\''));
 				ok = query.exec();
 				if (ok) while (query.next()) matches.append(query.value(0).toString());
 			}
@@ -191,6 +195,39 @@ private Q_SLOTS:
 		QTRY_COMPARE(translated.count(), 2);
 	}
 
+	void queryOwnersCancelOnlyObsoleteUnsharedRequests()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		const QString config = temporary.filePath(QStringLiteral("translation.ini"));
+		writeConfig(config, serverUrl(server));
+		TranslationService service(nullptr, config, temporary.filePath(QStringLiteral("cache")));
+		MusicSearch search(nullptr, &service);
+		QObject library, queue;
+		const QString old = QStringLiteral("动物");
+		const QString current = QStringLiteral("动物狂欢节");
+		search.setQuery(&library, {old});
+		search.alternatives(old);
+		QVERIFY(search.isPending(old));
+		search.setQuery(&queue, {old});
+		search.setQuery(&library, {current});
+		QVERIFY(search.isPending(old)); // Still needed in another view.
+		search.setQuery(&queue, {});
+		QVERIFY(!search.isPending(old));
+		search.alternatives(current);
+		QVERIFY(search.isPending(current));
+		search.setQuery(&library, {});
+		QVERIFY(!search.isPending(current));
+		{
+			QObject transient;
+			search.setQuery(&transient, {current});
+			search.alternatives(current);
+			QVERIFY(search.isPending(current));
+		}
+		QVERIFY(!search.isPending(current));
+	}
+
 	void localMatchingUsesAndAcrossFieldsAndIgnoresAccents()
 	{
 		const QList<QStringList> groups = {
@@ -199,6 +236,8 @@ private Q_SLOTS:
 		QVERIFY(SearchTerms::matches(groups, {QLatin1String("Le carnaval des animaux"), QString::fromUtf8("Camille Saint-Saëns")}));
 		QVERIFY(!SearchTerms::matches(groups, {QLatin1String("Le carnaval des animaux"), QLatin1String("Debussy")}));
 		QVERIFY(SearchTerms::matches({{QLatin1String("saens")}}, {QString::fromUtf8("Saint-Saëns")}));
+		QVERIFY(SearchTerms::matches(
+		    SearchTerms::prepare({{QLatin1String("saens")}}), {QString::fromUtf8("Saint-Saëns")}));
 	}
 
 	void ftsGroupsAreAndedAndModelTextRemainsLiteral()
@@ -211,13 +250,15 @@ private Q_SLOTS:
 		const QString animal = SearchTerms::ftsAlternatives({QString::fromUtf8("动物"), QLatin1String("animaux"), QLatin1String("animals")});
 		const QString composer = SearchTerms::ftsAlternatives({QLatin1String("Saint Saens"), QString::fromUtf8("圣桑")});
 		bool succeeded = false;
-		QCOMPARE(ftsMatches(animal + QLatin1Char(' ') + composer, rows, &succeeded),
+		QVERIFY(!animal.contains(QLatin1Char('(')));
+		QVERIFY(!composer.contains(QLatin1Char('(')));
+		QCOMPARE(ftsMatches({animal, composer}, rows, &succeeded),
 		         QStringList({QLatin1String("Le carnaval des animaux Saint Saens")}));
 		QVERIFY(succeeded);
 
 		const QString hostile = SearchTerms::ftsAlternatives({QLatin1String("animals\" OR secret")});
 		QVERIFY(!hostile.isEmpty());
-		QCOMPARE(ftsMatches(hostile, rows, &succeeded), QStringList());
+		QCOMPARE(ftsMatches({hostile}, rows, &succeeded), QStringList());
 		QVERIFY(succeeded);
 	}
 };

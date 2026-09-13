@@ -271,6 +271,7 @@ void SqlLibraryModel::search(const QString& str, const QString& genre)
 {
 	searchText = str;
 	searchGenre = genre;
+	MusicSearch::self()->setQuery(this, SearchTerms::tokens(str.toLower()));
 	QMap<QString, QStringList> alternatives;
 	for (const QString& term : SearchTerms::tokens(str.toLower())) {
 		if (MusicSearch::containsChinese(term)) alternatives.insert(term, MusicSearch::self()->alternatives(term));

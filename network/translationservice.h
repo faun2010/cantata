@@ -49,6 +49,8 @@ public:
 	// Read an existing result without scheduling a request. Used to reuse old
 	// tooltip caches while omitting file paths from all new translation requests.
 	QString cached(const QString& source, const QString& context = QString()) const;
+	bool isPending(const QString& source, const QString& context = QString()) const;
+	void cancel(const QString& source, const QString& context = QString());
 	static QString plainTextToHtml(QString text);
 	void reloadConfiguration();
 
@@ -101,6 +103,7 @@ private:
 	QNetworkAccessManager* network;
 	bool enabled = true;
 	int timeoutMs = 180000;
+	int searchTimeoutMs = 30000;
 	int cooldownSeconds = 30;
 	int maxMemoryEntries = 512;
 	int maxConcurrentRequests = 1;
