@@ -43,6 +43,7 @@
 #include "scrobbling/scrobblingsettings.h"
 #endif
 #include "apikeyssettings.h"
+#include "translationsettings.h"
 #include <QScreen>
 #include <QStringList>
 #include <QTimer>
@@ -68,10 +69,12 @@ PreferencesDialog::PreferencesDialog(QWidget* parent)
 #endif
 	custom = new CustomActionsSettings(this);
 	apiKeys = new ApiKeysSettings(this);
+	translation = new TranslationSettings(this);
 	server->load();
 	playback->load();
 	interface->load();
 	context->load();
+	translation->load();
 #ifdef ENABLE_SCROBBLING
 	scrobbling->load();
 #endif
@@ -80,6 +83,7 @@ PreferencesDialog::PreferencesDialog(QWidget* parent)
 	addPage(QLatin1String("playback"), playback, tr("Playback"), Icon::fa(fa::fa_solid, fa::fa_volume_high), tr("Playback Settings"));
 	addPage(QLatin1String("interface"), interface, tr("Interface"), Icon::fa(fa::fa_solid, fa::fa_sliders), tr("Interface Settings"));
 	addPage(QLatin1String("info"), context, tr("Info"), Icon::fa(fa::fa_solid, fa::fa_circle_info), tr("Info View Settings"));
+	addPage(QLatin1String("translation"), translation, tr("Translation"), Icon::fa(fa::fa_solid, fa::fa_language), tr("Translation Settings"));
 #ifdef ENABLE_SCROBBLING
 	addPage(QLatin1String("scrobbling"), scrobbling, tr("Scrobbling"), Icon::fa(fa::fa_brands, fa::fa_lastfm), tr("Scrobbling Settings"));
 #endif
@@ -143,6 +147,7 @@ void PreferencesDialog::writeSettings()
 	audiocd->save();
 #endif
 	context->save();
+	translation->save();
 #ifdef ENABLE_SCROBBLING
 	scrobbling->save();
 #endif

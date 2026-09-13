@@ -46,6 +46,7 @@ class ScrobblingSettings;
 #endif
 class CustomActionsSettings;
 class ApiKeysSettings;
+class TranslationSettings;
 
 class PreferencesDialog : public ConfigDialog {
 	Q_OBJECT
@@ -87,6 +88,7 @@ private:
 #endif
 	CustomActionsSettings* custom;
 	ApiKeysSettings* apiKeys;
+	TranslationSettings* translation;
 };
 
 #endif

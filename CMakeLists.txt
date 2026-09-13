@@ -417,6 +417,7 @@ target_sources(
         gui/multimediakeysinterface.cpp
         gui/apikeys.cpp
         gui/apikeyssettings.cpp
+        gui/translationsettings.cpp
         devices/deviceoptions.cpp
         db/librarydb.cpp
         db/mpdlibrarydb.cpp
