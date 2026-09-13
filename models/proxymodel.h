@@ -26,6 +26,7 @@
 
 #include "config.h"
 #include "mpd-interface/song.h"
+#include "support/searchterms.h"
 #include <QSortFilterProxyModel>
 #include <QStringList>
 
@@ -77,7 +78,7 @@ protected:
 	QModelIndex rootIndex;
 	QString origFilterText;
 	QStringList filterStrings;
-	QList<QStringList> filterAlternatives;
+	QList<SearchTerms::NeedleGroup> filterAlternatives;
 	const void* filter;
 	quint16 yearFrom;
 	quint16 yearTo;

@@ -111,7 +111,7 @@ bool ProxyModel::update(const QString& txt)
 	}
 
 	for (const QString& term : filterStrings) {
-		filterAlternatives.append(MusicSearch::self()->alternatives(term));
+		filterAlternatives.append(SearchTerms::prepare({ MusicSearch::self()->alternatives(term) }).first());
 	}
 
 	origFilterText = text;
