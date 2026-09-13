@@ -1,0 +1,28 @@
+context/artistview.cpp
+  s_9f6bc0539647ef::t_a1e5c71d50433e 104-107,112,114,119-132
+  s_9f6bc0539647ef::t_62e5a9da448538 443
+  s_9f6bc0539647ef::t_520f6860a2bb03 467
+  s_9f6bc0539647ef::t_9205fe1b359160 42
+  s_9f6bc0539647ef::t_20b22e86c2e08d 224
+  s_9f6bc0539647ef::t_ccac14cd99ebc1 434-435,437
+  s_9f6bc0539647ef::t_3c9d6b40a4b8d4 139
+  s_9f6bc0539647ef::t_54f68aee59a008 108-111,113,115-118
+context/artistview.h
+  s_9f6bc0539647ef::t_6c18fc1c74b5ff 92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "1301495c9fd10941f0f92fb24ab4348a9df2ab27",
+  "prompts": {},
+  "sessions": {
+    "s_9f6bc0539647ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4721eb09-7430-4806-b270-4e020748af43",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
