@@ -1,0 +1,33 @@
+network/translationservice.cpp
+  s_9f6bc0539647ef::t_14d5b11d9d0abc 352-370
+  s_9f6bc0539647ef::t_deb7f2a69792fe 401-409,425-434
+  s_9f6bc0539647ef::t_c073e2c74fab26 39-71,371
+  s_9f6bc0539647ef::t_33da09bd052fb6 244
+  s_9f6bc0539647ef::t_42b7cb1c7f1392 164
+  s_9f6bc0539647ef::t_021f3eb216ba6b 109-111
+network/translationservice.h
+  s_9f6bc0539647ef::t_ca62938f6c3a59 66-68,79-83
+  s_9f6bc0539647ef::t_f43bfe0fc60963 104-107
+tests/translationservice_test.cpp
+  s_9f6bc0539647ef::t_dc4f091334f388 222-270
+  s_9f6bc0539647ef::t_51f073fc51e2d3 292-298,302-317,319-344
+  s_9f6bc0539647ef::t_6f8d9fc032c0f4 345-346
+  s_9f6bc0539647ef::t_da559ea4f0a102 299-301,318
+  s_9f6bc0539647ef::t_5ae42e895b7181 104-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "b2f98d4ec341b15e2b5220301db92df22ffc9bf2",
+  "prompts": {},
+  "sessions": {
+    "s_9f6bc0539647ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4721eb09-7430-4806-b270-4e020748af43",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
