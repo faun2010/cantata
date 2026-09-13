@@ -1,0 +1,29 @@
+network/translationservice.cpp
+  s_9f6bc0539647ef::t_a446835d380297 105-114
+network/networkaccessmanager.cpp
+  s_9f6bc0539647ef::t_43a9a54b6a6858 48
+  s_9f6bc0539647ef::t_30669be9732e30 27
+tests/translationservice_test.cpp
+  s_9f6bc0539647ef::t_a2f2fe5a83a722 7
+  s_9f6bc0539647ef::t_326f3900e11c48 411-432
+gui/main.cpp
+  s_9f6bc0539647ef::t_cbf49ef0804a88 394,398-401
+network/translationservice.h
+  s_9f6bc0539647ef::t_9a4eb9176139e0 32-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "b066b4e61f5dd53d663a2666af83c9a4b8a038a6",
+  "prompts": {},
+  "sessions": {
+    "s_9f6bc0539647ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4721eb09-7430-4806-b270-4e020748af43",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
