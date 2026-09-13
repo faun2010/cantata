@@ -50,6 +50,16 @@ target_link_libraries(wikitemplateutils_test PRIVATE
 )
 add_test(NAME wikitemplateutils_test COMMAND wikitemplateutils_test)
 
+add_executable(searchterms_test
+    searchterms_test.cpp
+)
+target_include_directories(searchterms_test PRIVATE ..)
+target_link_libraries(searchterms_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Test
+)
+add_test(NAME searchterms_test COMMAND searchterms_test)
+
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Gui)
 add_executable(artworkquality_test artworkquality_test.cpp)
 target_include_directories(artworkquality_test PRIVATE ..)

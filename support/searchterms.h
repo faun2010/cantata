@@ -21,13 +21,35 @@ inline QStringList tokens(const QString& text)
 	return text.split(whitespace, Qt::SkipEmptyParts);
 }
 
+inline bool isMark(const QChar& ch)
+{
+	return ch.category() == QChar::Mark_NonSpacing || ch.category() == QChar::Mark_SpacingCombining
+	    || ch.category() == QChar::Mark_Enclosing;
+}
+
+inline bool hasMarks(const QString& text)
+{
+	for (const QChar ch : text) if (isMark(ch)) return true;
+	return false;
+}
+
+inline QString stripMarks(const QString& text)
+{
+	QString result;
+	for (const QChar ch : text) if (!isMark(ch)) result += ch;
+	return result.simplified();
+}
+
+// Compatibility decomposition (NFKD) so fullwidth/ligature forms fold onto their
+// plain equivalents (e.g. "ＡＢＣ" -> "abc"). Marks are kept here: whether they
+// should be stripped depends on the needle being compared (see matches()), not
+// on this text in isolation.
 inline QString normalized(const QString& text)
 {
 	QString result;
-	for (const QChar ch : text.normalized(QString::NormalizationForm_D).toCaseFolded()) {
+	for (const QChar ch : text.normalized(QString::NormalizationForm_KD).toCaseFolded()) {
 		if (ch.category() == QChar::Punctuation_Dash) result += QLatin1Char(' ');
-		else if (ch.category() != QChar::Mark_NonSpacing && ch.category() != QChar::Mark_SpacingCombining
-		    && ch.category() != QChar::Mark_Enclosing) result += ch;
+		else result += ch;
 	}
 	return result.simplified();
 }
@@ -62,11 +84,33 @@ inline bool matches(const QList<QStringList>& groups, const QStringList& values)
 {
 	QStringList candidates;
 	for (const QString& value : values) candidates.append(normalized(value));
+
 	for (const QStringList& group : groups) {
 		bool found = false;
 		for (const QString& term : group) {
-			const QString needle = normalized(term);
-			for (const QString& candidate : candidates) {
+			// Fast path, and also the fallback for a needle that normalizes away to
+			// nothing (e.g. a bare "-" or "--"): a plain case-insensitive contains()
+			// against the original text. This must never be skipped, since an empty
+			// normalized needle would otherwise match every row.
+			for (const QString& value : values) {
+				if (value.contains(term, Qt::CaseInsensitive)) {
+					found = true;
+					break;
+				}
+			}
+			if (found) break;
+
+			const QString needleFull = normalized(term);
+			if (needleFull.isEmpty()) continue;
+			// Only strip marks from a mark-free needle. A needle that itself carries
+			// marks (e.g. "か" + dakuten) must keep them, so it does not over-match
+			// the bare base character.
+			const bool needleHasMarks = hasMarks(needleFull);
+			const QString needle = needleHasMarks ? needleFull : stripMarks(needleFull);
+			if (needle.isEmpty()) continue;
+
+			for (const QString& candidateFull : candidates) {
+				const QString candidate = needleHasMarks ? candidateFull : stripMarks(candidateFull);
 				if (candidate.contains(needle)) {
 					found = true;
 					break;
