@@ -44,6 +44,7 @@ SyncCollectionWidget::SyncCollectionWidget(QWidget* parent, const QString& title
 
 	proxy.setSourceModel(&model);
 	tree->setModel(&proxy);
+	connect(&proxy, &ProxyModel::filterUpdatedAsync, this, &SyncCollectionWidget::searchItems);
 	tree->setPageDefaults();
 	tree->setUseSimpleDelegate();
 	search->setText(QString());

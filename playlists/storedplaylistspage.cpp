@@ -67,6 +67,7 @@ StoredPlaylistsPage::StoredPlaylistsPage(QWidget* p)
 
 	proxy.setSourceModel(PlaylistsModel::self());
 	view->setModel(&proxy);
+	connect(&proxy, &ProxyModel::filterUpdatedAsync, this, [this]() { updateSearchView(true); });
 	view->setDeleteAction(StdActions::self()->removeAction);
 	view->alwaysShowHeader();
 	connect(view, SIGNAL(doubleClicked(const QModelIndex&)), this, SLOT(itemDoubleClicked(const QModelIndex&)));
@@ -427,10 +428,15 @@ void StoredPlaylistsPage::doSearch()
 {
 	QString text = view->searchText().trimmed();
 	bool updated = proxy.update(text);
+	updateSearchView(updated);
+}
+
+void StoredPlaylistsPage::updateSearchView(bool rowsChanged)
+{
 	if (proxy.enabled() && !proxy.filterText().isEmpty()) {
 		view->expandAll();
 	}
-	if (updated) {
+	if (rowsChanged) {
 		view->updateRows();
 	}
 }

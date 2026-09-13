@@ -32,6 +32,7 @@
 class QMimeData;
 
 class ProxyModel : public QSortFilterProxyModel {
+	Q_OBJECT
 public:
 	ProxyModel(QObject* parent);
 	~ProxyModel() override {}
@@ -56,6 +57,12 @@ public:
 	QModelIndexList mapToSource(const QModelIndexList& list, bool leavesOnly = true) const;
 	QMimeData* mimeData(const QModelIndexList& indexes) const override;
 	QModelIndexList leaves(const QModelIndexList& list) const;
+
+Q_SIGNALS:
+	// Emitted after the filter has been re-applied asynchronously (e.g. once LLM-provided search
+	// alternatives arrive), so views can redo the same post-update steps (expandAll etc) that
+	// normally follow a direct call to update().
+	void filterUpdatedAsync();
 
 protected:
 	bool matchesFilter(const Song& s) const;

@@ -62,6 +62,7 @@ SmartPlaylistsPage::SmartPlaylistsPage(QWidget* p)
 
 	proxy.setSourceModel(SmartPlaylists::self());
 	view->setModel(&proxy);
+	connect(&proxy, &ProxyModel::filterUpdatedAsync, this, &SmartPlaylistsPage::doSearch);
 	view->setDeleteAction(removeAction);
 	view->setMode(ItemView::Mode_List);
 	controlActions();

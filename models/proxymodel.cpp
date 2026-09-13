@@ -39,6 +39,7 @@ ProxyModel::ProxyModel(QObject* parent)
 		const QString current = origFilterText;
 		origFilterText.clear();
 		update(current);
+		emit filterUpdatedAsync();
 	});
 }
 

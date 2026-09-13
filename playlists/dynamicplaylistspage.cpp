@@ -71,6 +71,7 @@ DynamicPlaylistsPage::DynamicPlaylistsPage(QWidget* p)
 	DynamicPlaylists::self()->stopAct()->setEnabled(false);
 	proxy.setSourceModel(DynamicPlaylists::self());
 	view->setModel(&proxy);
+	connect(&proxy, &ProxyModel::filterUpdatedAsync, this, &DynamicPlaylistsPage::doSearch);
 	view->setDeleteAction(removeAction);
 	view->setMode(ItemView::Mode_List);
 	controlActions();
