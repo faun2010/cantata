@@ -300,6 +300,10 @@ void TranslationService::startRequest(Request pending)
 	    "Return only the translation as plain text, with no notes, labels, markdown, or HTML. "
 	    "Prompt version: %2.").arg(targetLanguage, promptVersion);
 	QString input = pending.source;
+	if (pending.context.startsWith(QLatin1String("Artist biography for "))) {
+		systemPrompt += QStringLiteral(" Preserve every [[CANTATA_LINK_n_BEGIN]] and [[CANTATA_LINK_n_END]] marker exactly, "
+		                               "including its number and order. Translate the text between each pair; never insert URLs.");
+	}
 	if (pending.context == QLatin1String("music-search-v1")) {
 		systemPrompt = QStringLiteral(
 		    "Generate multilingual search equivalents for the supplied Chinese music search term. "

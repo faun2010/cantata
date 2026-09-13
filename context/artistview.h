@@ -27,6 +27,7 @@
 #include "db/librarydb.h"
 #include "mpd-interface/song.h"
 #include "view.h"
+#include "biographytranslation.h"
 #include <QMap>
 
 class ComboBox;
@@ -89,7 +90,7 @@ private:
 	QString originalBiography;
 	QString biographySource;
 	QString biographyTranslationContext;
-	QString biographyLink;
+	BiographyTranslation::Prepared biographyTranslation;
 	QString similarArtists;
 	NetworkJob* currentSimilarJob;
 	QString provider;

@@ -81,3 +81,8 @@ add_executable(musicsearch_test musicsearch_test.cpp ../network/musicsearch.cpp 
 target_include_directories(musicsearch_test PRIVATE ..)
 target_link_libraries(musicsearch_test PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Network Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Sql)
 add_test(NAME musicsearch_test COMMAND musicsearch_test)
+
+add_executable(biographytranslation_test biographytranslation_test.cpp)
+target_include_directories(biographytranslation_test PRIVATE ..)
+target_link_libraries(biographytranslation_test PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Test)
+add_test(NAME biographytranslation_test COMMAND biographytranslation_test)
