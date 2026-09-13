@@ -89,6 +89,7 @@ private:
 	QString originalBiography;
 	QString biographySource;
 	QString biographyTranslationContext;
+	QString biographyLink;
 	QString similarArtists;
 	NetworkJob* currentSimilarJob;
 	QString provider;

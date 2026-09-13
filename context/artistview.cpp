@@ -39,6 +39,7 @@
 #include <QLayout>
 #include <QMenu>
 #include <QPixmap>
+#include <QRegularExpression>
 #include <QTextStream>
 #include <QTextDocument>
 #include <QTimer>
@@ -100,13 +101,42 @@ static QString checkHaveArtist(const QSet<QString>& mpdArtists, const QString& a
 	return QString();
 }
 
+// Wikipedia and Last.fm both append a single "read more"/"open in browser" anchor
+// (preceded by one or more <br> tags) to the very end of the biography HTML they
+// return - see WikipediaEngine::wikiToHtml() and LastFmEngine::parseResponse().
+// Pull that trailing anchor out so it can be kept aside from the plain text that
+// gets sent for translation, then re-attached afterwards. "textEnd" is set to the
+// offset in "html" where the trailing decoration (leading <br> tags included)
+// begins, so the caller can cut the text sent for translation at exactly that point.
+static QString extractTrailingLink(const QString& html, int* textEnd = nullptr)
+{
+	static const QRegularExpression trailingLinkRx(QStringLiteral("(?:<br\\s*/?>\\s*)*(<a\\s+href=(['\"])[^'\"]*\\2[^>]*>[^<]*</a>)\\s*$"), QRegularExpression::CaseInsensitiveOption);
+	QRegularExpressionMatch match = trailingLinkRx.match(html);
+	if (textEnd) {
+		*textEnd = match.hasMatch() ? match.capturedStart(0) : html.length();
+	}
+	return match.hasMatch() ? match.captured(1) : QString();
+}
+
+static QString appendBiographyLink(const QString& html, const QString& link)
+{
+	if (link.isEmpty()) {
+		return html;
+	}
+	QString result = html;
+	if (!result.isEmpty()) {
+		result += QLatin1String("<br/><br/>");
+	}
+	return result + link;
+}
+
 ArtistView::ArtistView(QWidget* parent)
 	: View(parent), currentSimilarJob(nullptr)
 {
 	engine = ContextEngine::create(this);
 	refreshAction = ActionCollection::get()->createAction("refreshartist", tr("Refresh Artist Information"), Icons::self()->refreshIcon);
 	connect(refreshAction, SIGNAL(triggered()), this, SLOT(refresh()));
-	originalTextAction = new QAction(QStringLiteral("显示原文"), this);
+	originalTextAction = new QAction(tr("Show original"), this);
 	originalTextAction->setCheckable(true);
 	connect(originalTextAction, &QAction::toggled, this, &ArtistView::setBio);
 	connect(engine, SIGNAL(searchResult(QString, QString)), this, SLOT(searchResponse(QString, QString)));
@@ -191,6 +221,7 @@ void ArtistView::update(const Song& s, bool force)
 		originalBiography.clear();
 		biographySource.clear();
 		biographyTranslationContext.clear();
+		biographyLink.clear();
 		albums.clear();
 		similarArtists = QString();
 		if (!currentSong.isEmpty()) {
@@ -400,14 +431,16 @@ void ArtistView::searchResponse(const QString& resp, const QString& lang)
 {
 	biography = engine->translateLinks(resp);
 	originalBiography = biography;
+	int biographyTextEnd = biography.length();
+	biographyLink = extractTrailingLink(biography, &biographyTextEnd);
 	QTextDocument document;
-	document.setHtml(biography);
+	document.setHtml(biography.left(biographyTextEnd));
 	biographySource = document.toPlainText().trimmed();
 	biographyTranslationContext = QLatin1String("Artist biography for ") + currentSong.artist;
 	if (TranslationService::self()->isEnabled() && !biographySource.isEmpty()) {
 		const QString translated = TranslationService::self()->translate(biographySource, biographyTranslationContext);
 		if (translated != biographySource) {
-			biography = TranslationService::plainTextToHtml(translated);
+			biography = appendBiographyLink(TranslationService::plainTextToHtml(translated), biographyLink);
 		}
 	}
 	hideSpinner();
@@ -431,7 +464,7 @@ void ArtistView::biographyTranslationReady(const QString& source, const QString&
 	if (translation == source) {
 		return;
 	}
-	biography = TranslationService::plainTextToHtml(translation);
+	biography = appendBiographyLink(TranslationService::plainTextToHtml(translation), biographyLink);
 	setBio();
 }
 
