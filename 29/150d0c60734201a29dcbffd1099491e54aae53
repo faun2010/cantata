@@ -1,0 +1,24 @@
+models/mpdsearchmodel.cpp
+  s_9f6bc0539647ef::t_da4412f7337d9f 142,151-154,156-158
+  s_9f6bc0539647ef::t_148493f6db3572 111-113,116-123
+  s_9f6bc0539647ef::t_8d31dcfbbfe85c 78-80
+  s_9f6bc0539647ef::t_193c741356cad4 32
+models/mpdsearchmodel.h
+  s_9f6bc0539647ef::t_cd23b14d6b492d 60-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "29150d0c60734201a29dcbffd1099491e54aae53",
+  "prompts": {},
+  "sessions": {
+    "s_9f6bc0539647ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4721eb09-7430-4806-b270-4e020748af43",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
