@@ -1,0 +1,21 @@
+3rdparty/knotifications/CMakeLists.txt
+  s_76d2fc9bc87254::t_8a49ed4ff14ee0 8
+context/ultimatelyricsprovider.cpp
+  s_76d2fc9bc87254::t_d6fa9e3b1d6cc7 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "e05f90463145eb5a3c9f3350e1b67816d1ba77e2",
+  "prompts": {},
+  "sessions": {
+    "s_76d2fc9bc87254": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00c092f0-32a4-4dd8-a84a-a8ee6fcdd4e9",
+        "model": "unknown"
+      },
+      "human_author": "panzm <panzm@fullhan.com>"
+    }
+  }
+}
