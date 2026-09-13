@@ -29,6 +29,14 @@ public:
 	static TranslationService* self();
 	static void disableNetworkAccess();
 
+	// Lets the application route translation requests through its shared
+	// QNetworkAccessManager (proxy configuration, etc) instead of the
+	// private one this service creates for itself. The previously used
+	// manager, if owned by this service, is left alone and destroyed as
+	// usual when this object is destroyed; an injected manager is never
+	// deleted here.
+	void setNetworkAccessManager(QNetworkAccessManager* manager);
+
 	// The optional paths are intended for isolated tests and portable builds.
 	explicit TranslationService(QObject* parent = nullptr, const QString& configurationFile = QString(), const QString& cacheDirectory = QString());
 	~TranslationService() override;

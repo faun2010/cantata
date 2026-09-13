@@ -102,6 +102,16 @@ TranslationService::~TranslationService()
 	}
 }
 
+void TranslationService::setNetworkAccessManager(QNetworkAccessManager* manager)
+{
+	if (!manager || manager == network) return;
+	// The manager this service created for itself (if any) stays parented
+	// to `this` and is destroyed normally in the destructor; it is simply
+	// no longer used to post new requests. An injected manager is owned by
+	// its caller and is never deleted here.
+	network = manager;
+}
+
 void TranslationService::createDefaultConfiguration() const
 {
 	QSettings settings(configFile, QSettings::IniFormat);

@@ -391,9 +391,14 @@ int main(int argc, char* argv[])
 	}
 
 	if (cmdLineParser.isSet(noNetworkOption)) {
+		// Also disables TranslationService's network access.
 		NetworkAccessManager::disableNetworkAccess();
-		TranslationService::disableNetworkAccess();
 	}
+
+	// Route translation requests through the shared network access manager
+	// so they pick up the user's proxy configuration, the same as covers
+	// and lyrics do.
+	TranslationService::self()->setNetworkAccessManager(NetworkAccessManager::self());
 
 // Set the permissions on the config file on Unix - it can contain passwords
 // for internet services so it's important that other users can't read it.

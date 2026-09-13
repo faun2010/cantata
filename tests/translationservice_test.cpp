@@ -4,6 +4,7 @@
 #include <QHostAddress>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkAccessManager>
 #include <QNetworkProxy>
 #include <QPointer>
 #include <QSettings>
@@ -405,6 +406,30 @@ private Q_SLOTS:
 		QCOMPARE(ready.first().at(2).toString(), QLatin1String("translated"));
 		QTest::qWait(250);
 		QCOMPARE(ready.count(), 1);
+	}
+
+	void requestsGoThroughInjectedNetworkAccessManager()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		int requestCount = 0;
+		serve(server, requestCount, QByteArrayLiteral("{\"response\":\"translated\"}"));
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		writeConfig(config, serverUrl(server));
+
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		QNetworkAccessManager injected;
+		QSignalSpy injectedFinished(&injected, &QNetworkAccessManager::finished);
+		service.setNetworkAccessManager(&injected);
+
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		service.translate(QLatin1String("source"), QLatin1String("context"));
+		QTRY_COMPARE(ready.count(), 1);
+		QCOMPARE(ready.first().at(2).toString(), QLatin1String("translated"));
+		// The reply came through the injected manager, not the service's own.
+		QCOMPARE(injectedFinished.count(), 1);
+		QCOMPARE(requestCount, 1);
 	}
 
 	void zzDisabledNetworkStillReadsCache()
