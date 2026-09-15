@@ -86,3 +86,11 @@ add_executable(biographytranslation_test biographytranslation_test.cpp)
 target_include_directories(biographytranslation_test PRIVATE ..)
 target_link_libraries(biographytranslation_test PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Test)
 add_test(NAME biographytranslation_test COMMAND biographytranslation_test)
+
+add_executable(workinfo_test workinfo_test.cpp ../context/workinfo.cpp)
+target_include_directories(workinfo_test PRIVATE ..)
+target_link_libraries(workinfo_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Test
+)
+add_test(NAME workinfo_test COMMAND workinfo_test)

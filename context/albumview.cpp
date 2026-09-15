@@ -28,6 +28,7 @@
 #include "models/mpdlibrarymodel.h"
 #include "mpd-interface/cuefile.h"
 #include "network/networkaccessmanager.h"
+#include "network/translationservice.h"
 #include "support/action.h"
 #include "support/actioncollection.h"
 #include "support/configuration.h"
@@ -38,8 +39,13 @@
 #include <QDebug>
 #include <QDesktopServices>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMenu>
+#include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QScrollBar>
+#include <QTextDocument>
 #include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
@@ -51,8 +57,10 @@
 
 const QLatin1String AlbumView::constCacheDir("albums/");
 const QLatin1String AlbumView::constInfoExt(".html.gz");
+const QLatin1String AlbumView::constWorkCacheDir("works/");
 
 static const QLatin1String constScheme("cantata");
+static const QByteArray constWorkUserAgent("Cantata classical-work lookup (https://github.com/CDrummond/cantata)");
 
 static QString cacheFileName(const QString& artist, const QString& album, const QString& lang, bool createDir)
 {
@@ -65,8 +73,38 @@ enum Parts {
 	All = Cover + Details
 };
 
+// Wikipedia and Last.fm both append a single "read more"/"open in browser"
+// anchor (preceded by one or more <br> tags) to the very end of the HTML
+// they return - see WikipediaEngine::wikiToHtml() and
+// LastFmEngine::parseResponse(), and ArtistView::extractTrailingLink() for
+// the same treatment of artist biographies. Pull that trailing anchor out
+// so it can be kept aside from the plain text sent for translation, then
+// re-attach it afterwards. "textEnd" is set to the offset in "html" where
+// the trailing decoration (leading <br> tags included) begins.
+static QString extractTrailingLink(const QString& html, int* textEnd = nullptr)
+{
+	static const QRegularExpression trailingLinkRx(QStringLiteral("(?:<br\\s*/?>\\s*)*(<a\\s+href=(['\"])[^'\"]*\\2[^>]*>[^<]*</a>)\\s*$"), QRegularExpression::CaseInsensitiveOption);
+	QRegularExpressionMatch match = trailingLinkRx.match(html);
+	if (textEnd) {
+		*textEnd = match.hasMatch() ? match.capturedStart(0) : html.length();
+	}
+	return match.hasMatch() ? match.captured(1) : QString();
+}
+
+static QString appendLink(const QString& html, const QString& link)
+{
+	if (link.isEmpty()) {
+		return html;
+	}
+	QString result = html;
+	if (!result.isEmpty()) {
+		result += QLatin1String("<br/><br/>");
+	}
+	return result + link;
+}
+
 AlbumView::AlbumView(QWidget* p)
-	: View(p), detailsReceived(0)
+	: View(p), detailsReceived(0), workJob(nullptr), workSummaryIsZh(false)
 {
 	engine = ContextEngine::create(this);
 #ifndef Q_OS_WIN
@@ -78,7 +116,12 @@ AlbumView::AlbumView(QWidget* p)
 #endif
 	refreshAction = ActionCollection::get()->createAction("refreshalbum", tr("Refresh Album Information"), Icons::self()->refreshIcon);
 	connect(refreshAction, SIGNAL(triggered()), this, SLOT(refresh()));
+	originalTextAction = new QAction(tr("Show original"), this);
+	originalTextAction->setCheckable(true);
+	connect(originalTextAction, &QAction::toggled, this, &AlbumView::showOriginalToggled);
 	connect(engine, SIGNAL(searchResult(QString, QString)), this, SLOT(searchResponse(QString, QString)));
+	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::detailsTranslationReady);
+	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::workIntroTranslationReady);
 	connect(Covers::self(), SIGNAL(cover(Song, QImage, QString)), SLOT(coverRetrieved(Song, QImage, QString)));
 	connect(Covers::self(), SIGNAL(coverUpdated(Song, QImage, QString)), SLOT(coverUpdated(Song, QImage, QString)));
 	connect(text, SIGNAL(anchorClicked(QUrl)), SLOT(playSong(QUrl)));
@@ -107,6 +150,7 @@ void AlbumView::showContextMenu(const QPoint& pos)
 {
 	QMenu* menu = text->createStandardContextMenu();
 	menu->addSeparator();
+	menu->addAction(originalTextAction);
 	if (cancelJobAction->isEnabled()) {
 		menu->addAction(cancelJobAction);
 	}
@@ -127,6 +171,10 @@ void AlbumView::refresh()
 	}
 	for (const QString& lang : engine->getLangs()) {
 		QFile::remove(cacheFileName(Covers::fixArtist(currentSong.albumArtistOrComposer()), currentSong.album, engine->getPrefix(lang), false));
+	}
+	QString workCache = workCacheFileName(false);
+	if (!workCache.isEmpty()) {
+		QFile::remove(workCache);
 	}
 	update(currentSong, true);
 }
@@ -245,6 +293,8 @@ void AlbumView::getTrackListing()
 void AlbumView::getDetails()
 {
 	engine->cancel();
+	abortWorkLookup();
+	currentWork = WorkInfo::deriveWork(currentSong.composer(), currentSong.album, currentSong.title, currentSong.firstGenre());
 	for (const QString& lang : engine->getLangs()) {
 		QString prefix = engine->getPrefix(lang);
 		QString cachedFile = cacheFileName(Covers::fixArtist(currentSong.albumArtistOrComposer()), currentSong.album, prefix, false);
@@ -298,23 +348,104 @@ void AlbumView::searchResponse(const QString& resp, const QString& lang)
 		hideSpinner();
 	}
 
+	originalDetails.clear();
+	details.clear();
+	detailsSource.clear();
+	detailsTranslationContext.clear();
+	detailsLink.clear();
+
 	if (!resp.isEmpty()) {
-		details = engine->translateLinks(resp);
+		originalDetails = engine->translateLinks(resp);
+		int textEnd = originalDetails.length();
+		detailsLink = extractTrailingLink(originalDetails, &textEnd);
+		QTextDocument document;
+		document.setHtml(originalDetails.left(textEnd));
+		detailsSource = document.toPlainText().trimmed();
+		detailsTranslationContext = QLatin1String("Album description for ") + currentSong.albumArtistOrComposer() + QLatin1Char(' ') + currentSong.album;
+		details = originalDetails;
+		if (TranslationService::self()->isEnabled() && !detailsSource.isEmpty()) {
+			const QString translated = TranslationService::self()->translate(detailsSource, detailsTranslationContext);
+			if (translated != detailsSource) {
+				details = appendLink(TranslationService::plainTextToHtml(translated), detailsLink);
+			}
+		}
+
 		if (!lang.isEmpty()) {
 			KCompressionDevice f(cacheFileName(Covers::fixArtist(currentSong.albumArtistOrComposer()), currentSong.album, lang, true), KCompressionDevice::GZip);
 			if (f.open(QIODevice::WriteOnly)) {
 				f.write(resp.toUtf8().constData());
 			}
 		}
-		updateDetails();
 	}
+
+	updateWorkIntroductionSource();
+	updateDetails();
+}
+
+void AlbumView::detailsTranslationReady(const QString& source, const QString& context, const QString& translation)
+{
+	if (source != detailsSource || context != detailsTranslationContext) {
+		return;
+	}
+	if (translation == source) {
+		return;
+	}
+	details = appendLink(TranslationService::plainTextToHtml(translation), detailsLink);
+	updateDetails();
+}
+
+void AlbumView::workIntroTranslationReady(const QString& source, const QString& context, const QString& translation)
+{
+	if (source != workIntroSource || context != workIntroTranslationContext) {
+		return;
+	}
+	if (translation == source) {
+		return;
+	}
+	workIntroHtml = appendLink(TranslationService::plainTextToHtml(translation), workIntroLink);
+	updateDetails();
+}
+
+void AlbumView::showOriginalToggled()
+{
+	updateDetails(false);
+}
+
+QString AlbumView::buildWorkIntroductionSection(bool showOriginal) const
+{
+	if (!currentWork.valid) {
+		return QString();
+	}
+	QString body;
+	if (!originalDetails.isEmpty()) {
+		// Priority 1: the album description is the work introduction - see
+		// updateWorkIntroductionSource().
+		body = showOriginal ? originalDetails : (details.isEmpty() ? originalDetails : details);
+	}
+	else if (!workIntroOriginalHtml.isEmpty()) {
+		// Priority 2: the work's own Wikipedia article.
+		body = showOriginal ? workIntroOriginalHtml : (workIntroHtml.isEmpty() ? workIntroOriginalHtml : workIntroHtml);
+	}
+	else {
+		return QString();
+	}
+	QString html = View::subHeader(tr("Work Introduction")) + body;
+	if (!recommendedRecordings.isEmpty()) {
+		html += recommendedRecordings;
+	}
+	return html;
 }
 
 void AlbumView::updateDetails(bool preservePos)
 {
 	int pos = preservePos ? text->verticalScrollBar()->value() : 0;
-	if (!details.isEmpty()) {
-		setHtml(pic + "<br>" + details + "<br>" + trackList);
+	bool showOriginal = originalTextAction && originalTextAction->isChecked();
+	QString body = buildWorkIntroductionSection(showOriginal);
+	if (body.isEmpty()) {
+		body = showOriginal ? originalDetails : (details.isEmpty() ? originalDetails : details);
+	}
+	if (!body.isEmpty()) {
+		setHtml(pic + "<br>" + body + "<br>" + trackList);
 	}
 	else {
 		setHtml(pic + trackList);
@@ -327,6 +458,7 @@ void AlbumView::updateDetails(bool preservePos)
 void AlbumView::abort()
 {
 	engine->cancel();
+	abortWorkLookup();
 	hideSpinner();
 }
 
@@ -338,13 +470,230 @@ void AlbumView::clearCache()
 void AlbumView::clearDetails()
 {
 	details.clear();
+	originalDetails.clear();
+	detailsSource.clear();
+	detailsTranslationContext.clear();
+	detailsLink.clear();
 	trackList.clear();
 	bio.clear();
 	pic.clear();
 	songs.clear();
 	clear();
 	engine->cancel();
+	abortWorkLookup();
+	currentWork = WorkInfo::Candidate();
+	workIntroHtml.clear();
+	workIntroOriginalHtml.clear();
+	workIntroSource.clear();
+	workIntroTranslationContext.clear();
+	workIntroLink.clear();
 	detailsReceived = 0;
+}
+
+QString AlbumView::workCacheFileName(bool createDir) const
+{
+	if (!currentWork.valid) {
+		return QString();
+	}
+	return Utils::cacheDir(constWorkCacheDir, createDir) + Covers::encodeName(currentWork.composer) + QLatin1String(" - ") + Covers::encodeName(currentWork.title) + QLatin1String(".json");
+}
+
+void AlbumView::updateWorkIntroductionSource()
+{
+	workIntroHtml.clear();
+	workIntroOriginalHtml.clear();
+	workIntroSource.clear();
+	workIntroTranslationContext.clear();
+	workIntroLink.clear();
+	abortWorkLookup();
+
+	if (!currentWork.valid || !originalDetails.isEmpty()) {
+		// Either not a classical work candidate, or priority 1 (the album
+		// description, already fetched and translated in searchResponse())
+		// supplies the introduction - nothing further to fetch.
+		return;
+	}
+
+	loadWorkFromCacheOrNetwork();
+}
+
+void AlbumView::loadWorkFromCacheOrNetwork()
+{
+	const QString cachedFile = workCacheFileName(false);
+	if (!cachedFile.isEmpty() && QFile::exists(cachedFile)) {
+		QFile f(cachedFile);
+		if (f.open(QIODevice::ReadOnly)) {
+			const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+			if (doc.isObject()) {
+				const QJsonObject obj = doc.object();
+				WorkInfo::Summary summary;
+				summary.extract = obj.value(QLatin1String("extract")).toString();
+				summary.url = obj.value(QLatin1String("url")).toString();
+				if (!summary.extract.isEmpty()) {
+					applyWorkSummary(summary, obj.value(QLatin1String("lang")).toString() == QLatin1String("zh"));
+					Utils::touchFile(cachedFile);
+					return;
+				}
+			}
+		}
+	}
+	startWorkSearch();
+}
+
+void AlbumView::startWorkSearch()
+{
+	if (currentWork.searchQuery.isEmpty()) {
+		return;
+	}
+	QUrl url(QLatin1String("https://en.wikipedia.org/w/api.php"));
+	QUrlQuery query;
+	query.addQueryItem(QLatin1String("action"), QLatin1String("query"));
+	query.addQueryItem(QLatin1String("list"), QLatin1String("search"));
+	query.addQueryItem(QLatin1String("srsearch"), currentWork.searchQuery);
+	query.addQueryItem(QLatin1String("srlimit"), QLatin1String("5"));
+	query.addQueryItem(QLatin1String("format"), QLatin1String("json"));
+	url.setQuery(query);
+
+	QNetworkRequest request(url);
+	request.setRawHeader("User-Agent", constWorkUserAgent);
+	workJob = NetworkAccessManager::self()->get(request);
+	connect(workJob, SIGNAL(finished()), this, SLOT(workSearchFinished()));
+}
+
+void AlbumView::workSearchFinished()
+{
+	NetworkJob* reply = qobject_cast<NetworkJob*>(sender());
+	if (!reply || reply != workJob) {
+		return;
+	}
+	workJob = nullptr;
+	reply->deleteLater();
+	if (!reply->ok()) {
+		return;
+	}
+
+	workSelectedTitle = WorkInfo::selectSearchResult(reply->readAll(), currentWork);
+	if (workSelectedTitle.isEmpty()) {
+		return;
+	}
+
+	QUrl url(QLatin1String("https://en.wikipedia.org/w/api.php"));
+	QUrlQuery query;
+	query.addQueryItem(QLatin1String("action"), QLatin1String("query"));
+	query.addQueryItem(QLatin1String("prop"), QLatin1String("pageprops|langlinks"));
+	query.addQueryItem(QLatin1String("lllang"), QLatin1String("zh"));
+	query.addQueryItem(QLatin1String("titles"), workSelectedTitle);
+	query.addQueryItem(QLatin1String("redirects"), QLatin1String("1"));
+	query.addQueryItem(QLatin1String("format"), QLatin1String("json"));
+	url.setQuery(query);
+
+	QNetworkRequest request(url);
+	request.setRawHeader("User-Agent", constWorkUserAgent);
+	workJob = NetworkAccessManager::self()->get(request);
+	connect(workJob, SIGNAL(finished()), this, SLOT(workPagePropsFinished()));
+}
+
+void AlbumView::workPagePropsFinished()
+{
+	NetworkJob* reply = qobject_cast<NetworkJob*>(sender());
+	if (!reply || reply != workJob) {
+		return;
+	}
+	workJob = nullptr;
+	reply->deleteLater();
+	if (!reply->ok()) {
+		return;
+	}
+
+	const WorkInfo::SiteLinks links = WorkInfo::parseSiteLinks(reply->readAll());
+
+	QUrl url;
+	url.setScheme(QLatin1String("https"));
+	QNetworkRequest request;
+	if (!links.zhTitle.isEmpty()) {
+		workSummaryIsZh = true;
+		QString path = links.zhTitle;
+		path.replace(QLatin1Char(' '), QLatin1Char('_'));
+		url.setHost(QLatin1String("zh.wikipedia.org"));
+		url.setPath(QLatin1String("/api/rest_v1/page/summary/") + path);
+		request.setRawHeader("Accept-Language", "zh-cn");
+	}
+	else {
+		workSummaryIsZh = false;
+		QString path = workSelectedTitle;
+		path.replace(QLatin1Char(' '), QLatin1Char('_'));
+		url.setHost(QLatin1String("en.wikipedia.org"));
+		url.setPath(QLatin1String("/api/rest_v1/page/summary/") + path);
+	}
+	request.setUrl(url);
+	request.setRawHeader("User-Agent", constWorkUserAgent);
+	workJob = NetworkAccessManager::self()->get(request);
+	connect(workJob, SIGNAL(finished()), this, SLOT(workSummaryFinished()));
+}
+
+void AlbumView::workSummaryFinished()
+{
+	NetworkJob* reply = qobject_cast<NetworkJob*>(sender());
+	if (!reply || reply != workJob) {
+		return;
+	}
+	workJob = nullptr;
+	reply->deleteLater();
+	if (!reply->ok()) {
+		return;
+	}
+
+	const WorkInfo::Summary summary = WorkInfo::parseSummary(reply->readAll());
+	if (summary.extract.isEmpty()) {
+		return;
+	}
+	applyWorkSummary(summary, workSummaryIsZh);
+
+	const QString cachedFile = workCacheFileName(true);
+	if (!cachedFile.isEmpty()) {
+		QJsonObject obj;
+		obj.insert(QLatin1String("lang"), workSummaryIsZh ? QLatin1String("zh") : QLatin1String("en"));
+		obj.insert(QLatin1String("extract"), summary.extract);
+		obj.insert(QLatin1String("url"), summary.url);
+		QFile f(cachedFile);
+		if (f.open(QIODevice::WriteOnly)) {
+			f.write(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+		}
+	}
+}
+
+void AlbumView::applyWorkSummary(const WorkInfo::Summary& summary, bool isZh)
+{
+	workIntroLink = summary.url.isEmpty() ? QString() : (QLatin1String("<a href=\"") + summary.url.toHtmlEscaped() + QLatin1String("\">") + tr("Wikipedia") + QLatin1String("</a>"));
+
+	workIntroOriginalHtml = appendLink(TranslationService::plainTextToHtml(summary.extract), workIntroLink);
+	workIntroHtml = workIntroOriginalHtml;
+	if (isZh) {
+		// The zh article is already in Chinese - show it directly, no
+		// translation needed.
+		workIntroSource.clear();
+		workIntroTranslationContext.clear();
+	}
+	else {
+		workIntroSource = summary.extract;
+		workIntroTranslationContext = QLatin1String("Classical work introduction for ") + currentWork.composer + QLatin1Char(' ') + currentWork.title;
+		if (TranslationService::self()->isEnabled()) {
+			const QString translated = TranslationService::self()->translate(workIntroSource, workIntroTranslationContext);
+			if (translated != workIntroSource) {
+				workIntroHtml = appendLink(TranslationService::plainTextToHtml(translated), workIntroLink);
+			}
+		}
+	}
+	updateDetails();
+}
+
+void AlbumView::abortWorkLookup()
+{
+	if (workJob) {
+		workJob->cancelAndDelete();
+		workJob = nullptr;
+	}
+	workSelectedTitle.clear();
 }
 
 #include "moc_albumview.cpp"
