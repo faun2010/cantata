@@ -1,0 +1,94 @@
+context/recommendedrecordings.json
+  s_56a6a0ef55aa3f::t_665b55bbcb36c9 25-34,58-67,129-138,223-232,307-316
+  s_56a6a0ef55aa3f::t_5621e8711b7cef 92-101,152-161
+  s_56a6a0ef55aa3f::t_bc2586886a38a0 24,57,91,114-115,128,151,185-186,199-200,222,245-246,259-260,283-284,306,339-340,353-354,359
+context/albumview.cpp
+  s_56a6a0ef55aa3f::t_44f776c4bd1eae 1057,1110-1140
+  s_56a6a0ef55aa3f::t_a304fe82491ddd 152-154,156-169,171-172,175-176,179-187,197,200-202,205-206,216,219,223-226,232,234
+  s_56a6a0ef55aa3f::t_5b530bc1407025 1077-1081
+  s_56a6a0ef55aa3f::t_e39ba3238a7945 33
+  s_56a6a0ef55aa3f::t_22a70d2d102e70 733-739,742,746-750
+  s_56a6a0ef55aa3f::t_2591940db064d8 556-607,614-623,625-634,640,642
+  s_56a6a0ef55aa3f::t_0c838e164f0030 970-973
+  s_56a6a0ef55aa3f::t_d87b9715be6a66 703-709
+  s_56a6a0ef55aa3f::t_be7a4144eb7b02 199
+  s_56a6a0ef55aa3f::t_351308ee91aa25 238
+  s_56a6a0ef55aa3f::t_59f80757481efe 257-258
+  s_56a6a0ef55aa3f::t_9ba9ff6ffefdb4 879-916
+  s_56a6a0ef55aa3f::t_a8480427a366a0 937-942,953-955,958,983-986,990-1056
+  s_56a6a0ef55aa3f::t_5b9d3202c05930 1184-1209,1212-1249,1252-1257,1259,1269
+  s_56a6a0ef55aa3f::t_fff9e64c7bb842 641
+  s_56a6a0ef55aa3f::t_8d61b819074b62 757,770-780,785-787
+context/albumview.h
+  s_56a6a0ef55aa3f::t_12f689a201ed54 87-88
+  s_56a6a0ef55aa3f::t_1acc8adbe6db61 29
+  s_56a6a0ef55aa3f::t_12e14c7c2ca0da 37
+  s_56a6a0ef55aa3f::t_955e3955ceb072 77-79
+  s_56a6a0ef55aa3f::t_bd7758513fd75c 99-106
+  s_56a6a0ef55aa3f::t_8266ee177778e6 149,152-161
+network/translationservice.cpp
+  s_56a6a0ef55aa3f::t_d6a76df7e5a21d 323-339
+tests/recommendedrecordings_test.cpp
+  s_56a6a0ef55aa3f::t_9902ce2104e3ef 30
+  s_56a6a0ef55aa3f::t_f45b7b8c6fdb0b 71,75-90
+  s_56a6a0ef55aa3f::t_5392be5464f655 91,216-245
+gui/main.cpp
+  s_56a6a0ef55aa3f::t_ea125d7c729f6f 55,403
+network/networkaccessmanager.cpp
+  s_56a6a0ef55aa3f::t_ea125d7c729f6f 27,50
+tests/workdossier_test.cpp
+  s_56a6a0ef55aa3f::t_055620c9940bd9 1-208
+tests/CMakeLists.txt
+  s_56a6a0ef55aa3f::t_6c91b7283127fd 100-107
+  s_56a6a0ef55aa3f::t_83027f4967a60e 108-117
+context/workdossier.cpp
+  s_56a6a0ef55aa3f::t_ff84a2b05aefcf 17
+  s_56a6a0ef55aa3f::t_326cadd04a62a1 166
+  s_56a6a0ef55aa3f::t_29edf01c0827dd 1-16,18-91,99-104,107,109-118,121-127,132-165,167-255
+  s_56a6a0ef55aa3f::t_8d75452eef9119 92-98,105-106,108,119-120,128-131
+context/recordingcovers.h
+  s_56a6a0ef55aa3f::t_a8cf74b6f6ad49 40,42,51
+  s_56a6a0ef55aa3f::t_ea125d7c729f6f 69-70
+  s_56a6a0ef55aa3f::t_c8dfe901f0816c 152
+  s_56a6a0ef55aa3f::t_c4d59a65ec46d3 1-14,39,43,46,48,53-54,56-58,77-78,85-88,113,143,182-184
+  s_56a6a0ef55aa3f::t_3b12de34a8b704 15-38,41,44-45,47,49-50,52,55,59-68,71-76,79-84,89-112,114-142,144-151,153-181
+tests/translationservice_test.cpp
+  s_56a6a0ef55aa3f::t_561e4c5ca63061 465-495
+tests/recordingcovers_test.cpp
+  s_56a6a0ef55aa3f::t_17626d58749520 1-20,27-30,32-34,41-45,47-51,69-81,85-149,151,155,157-159,162-163,165,171-178,180-184
+  s_56a6a0ef55aa3f::t_f413851284c46c 21-26,31,35-40,46,52-59,63-65,67-68,82-84,166,179
+  s_56a6a0ef55aa3f::t_311fb2e5982e09 60-62,66,150,152-154,156,160-161,164,167-170
+CMakeLists.txt
+  s_56a6a0ef55aa3f::t_5a52d7a33e6c2b 470,472
+context/recordingcovers.cpp
+  s_56a6a0ef55aa3f::t_52ed581c20376e 1-13,31,59,102,104,108-109,111,116,294-295,297,301-302
+  s_56a6a0ef55aa3f::t_c8dfe901f0816c 135
+  s_56a6a0ef55aa3f::t_c906972aaefe97 14-30,32-58,60-75,83-101,103,105-107,110,112-115,117-134,136-158,162-293,296,298-300,303-367,370-371,377-378,381-382,386
+  s_56a6a0ef55aa3f::t_ea125d7c729f6f 76-82,159-161,368-369,372-376,379-380,383-385
+context/recommendedrecordings.cpp
+  s_56a6a0ef55aa3f::t_12f7a0b5dfb642 186
+  s_56a6a0ef55aa3f::t_170c447bcab0d8 244-249
+  s_56a6a0ef55aa3f::t_6c3022e32acc88 250-267
+context/workdossier.h
+  s_56a6a0ef55aa3f::t_5e0e63f609de43 1-99
+context/recommendedrecordings.h
+  s_56a6a0ef55aa3f::t_15c7a74aad8be2 123-131
+  s_56a6a0ef55aa3f::t_94f46ce63f0b25 116-122
+  s_56a6a0ef55aa3f::t_819c05c7b30511 46-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "823898f523147ba7d76e61e854181d62b4d4252e",
+  "prompts": {},
+  "sessions": {
+    "s_56a6a0ef55aa3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3229270c-ffb8-48fc-b360-0510b6c49251",
+        "model": "claude-opus-5"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    }
+  }
+}
