@@ -1,0 +1,25 @@
+docs/translation.md
+  s_56a6a0ef55aa3f::t_d7fc53dff435fd 11,13-20,22-24,28,39,43-73,77,79-101,103
+README.md
+  s_56a6a0ef55aa3f::t_d7fc53dff435fd 10
+docs/linux-local-build.md
+  s_56a6a0ef55aa3f::t_d7fc53dff435fd 1-50
+config/translation.ini.example
+  s_56a6a0ef55aa3f::t_d7fc53dff435fd 2,13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.11",
+  "base_commit_sha": "9b2badaa7fd5baabcfd43530df86a1b669d9e48c",
+  "prompts": {},
+  "sessions": {
+    "s_56a6a0ef55aa3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3229270c-ffb8-48fc-b360-0510b6c49251",
+        "model": "unknown"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    }
+  }
+}
