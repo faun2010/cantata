@@ -1,5 +1,5 @@
 [Translation]
-enabled=true
+enabled=false
 provider=ollama
 url=http://127.0.0.1:11434
 model=qwen3.8:27b
@@ -11,4 +11,5 @@ cooldownSeconds=30
 maxMemoryEntries=512
 maxConcurrentRequests=1
 maxQueuedRequests=16
+disableThinking=true
 apiKey=
