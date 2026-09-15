@@ -1,0 +1,281 @@
+{
+  "version": 1,
+  "generated": "2026-09-15",
+  "works": [
+    {
+      "composer": "Ludwig van Beethoven",
+      "title": "Piano Concerto No. 2 in B-flat major",
+      "catalogue": "Op. 19",
+      "aliases": [
+        "Piano Concerto No.2",
+        "Klavierkonzert Nr. 2"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "Artur Rubinstein",
+          "conductor": "Daniel Barenboim",
+          "ensemble": "",
+          "label": "RCA",
+          "catalogue": "ARL1-4711",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"
+        }
+      ]
+    },
+    {
+      "composer": "Ludwig van Beethoven",
+      "title": "Piano Concerto No. 4 in G major",
+      "catalogue": "Op. 58",
+      "aliases": [
+        "Piano Concerto No.4",
+        "Klavierkonzert Nr. 4"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "Glenn Gould",
+          "conductor": "Leonard Bernstein",
+          "ensemble": "",
+          "label": "Columbia/Impex",
+          "catalogue": "6011",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"
+        }
+      ]
+    },
+    {
+      "composer": "Ludwig van Beethoven",
+      "title": "Piano Concerto No. 5 in E-flat major \"Emperor\"",
+      "catalogue": "Op. 73",
+      "aliases": [
+        "Piano Concerto No.5",
+        "Emperor Concerto",
+        "Klavierkonzert Nr. 5"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "Clifford Curzon",
+          "conductor": "Hans Knappertsbusch",
+          "ensemble": "Vienna Philharmonic",
+          "label": "Decca",
+          "catalogue": "SLX 2002",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PGB92",
+          "rating": "Rosette",
+          "soloist": "Stephen (Bishop-)Kovacevich",
+          "conductor": "",
+          "ensemble": "Australian Chamber Orchestra",
+          "label": "EMI",
+          "catalogue": "CD-EMX 2184",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Grosse Fuge, Op. 133 (arr.)"
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG90",
+          "rating": "Rosette",
+          "soloist": "Melvyn Tan",
+          "conductor": "Roger Norrington",
+          "ensemble": "London Classical Players",
+          "label": "EMI",
+          "catalogue": "CDC7 49965-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Choral Fantasia, Op. 80; period instruments"
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG90",
+          "rating": "Rosette",
+          "soloist": "Stephen Bishop-Kovacevich",
+          "conductor": "Colin Davis",
+          "ensemble": "London Symphony Orchestra",
+          "label": "Philips",
+          "catalogue": "422 482-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Piano Sonata No. 30, Op. 109"
+        }
+      ]
+    },
+    {
+      "composer": "Modest Mussorgsky",
+      "title": "Pictures at an Exhibition",
+      "catalogue": "",
+      "aliases": [
+        "Bilder einer Ausstellung",
+        "Kartinki s vystavki"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG95",
+          "rating": "Rosette",
+          "version": "orchestral (orch. Ravel)",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "Chicago Symphony Orchestra",
+          "label": "RCA",
+          "catalogue": "09026 61401-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html"
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG91",
+          "rating": "Rosette",
+          "version": "piano (original)",
+          "soloist": "Mikhail Pletnev",
+          "conductor": "",
+          "ensemble": "",
+          "label": "Virgin Classics",
+          "catalogue": "VC7 59611-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html"
+        }
+      ]
+    },
+    {
+      "composer": "Richard Strauss",
+      "title": "Also sprach Zarathustra",
+      "catalogue": "Op. 30",
+      "aliases": [
+        "Thus Spoke Zarathustra"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "",
+          "label": "RCA/Analogue Productions",
+          "catalogue": "LSC-1806",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"
+        },
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "",
+          "conductor": "Zubin Mehta",
+          "ensemble": "Los Angeles Philharmonic",
+          "label": "Original Recordings Group",
+          "catalogue": "ORG-159-45",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "note": "45rpm, 2LP reissue"
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "Chicago Symphony Orchestra",
+          "label": "RCA",
+          "catalogue": "09026 61494-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Ein Heldenleben on same disc"
+        }
+      ]
+    },
+    {
+      "composer": "Richard Strauss",
+      "title": "Ein Heldenleben",
+      "catalogue": "Op. 40",
+      "aliases": [
+        "A Hero's Life"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "Chicago Symphony Orchestra",
+          "label": "RCA",
+          "catalogue": "09026 61494-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Also sprach Zarathustra on same disc"
+        }
+      ]
+    },
+    {
+      "composer": "Richard Strauss",
+      "title": "Till Eulenspiegels lustige Streiche",
+      "catalogue": "Op. 28",
+      "aliases": [
+        "Till Eulenspiegel's Merry Pranks"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "",
+          "label": "RCA/Analogue Productions",
+          "catalogue": "AAPC 2077",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"
+        }
+      ]
+    },
+    {
+      "composer": "Richard Strauss",
+      "title": "Tod und Verklärung",
+      "catalogue": "Op. 24",
+      "aliases": [
+        "Death and Transfiguration"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG90",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Herbert von Karajan",
+          "ensemble": "Berlin Philharmonic",
+          "label": "Deutsche Grammophon",
+          "catalogue": "410 892-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Metamorphosen for 23 solo strings"
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "George Szell",
+          "ensemble": "Cleveland Orchestra",
+          "label": "Sony",
+          "catalogue": "SBK 53511",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "reissue disc also couples Sinfonia Domestica and Salome's Dance of the 7 Veils (Ormandy/Philadelphia Orchestra)"
+        }
+      ]
+    }
+  ]
+}

@@ -467,6 +467,7 @@ target_sources(
         context/artistview.cpp
         context/albumview.cpp
         context/workinfo.cpp
+        context/recommendedrecordings.cpp
         context/songview.cpp
         context/contextengine.cpp
         context/wikipediaengine.cpp

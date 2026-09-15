@@ -26,6 +26,7 @@
 #include "contextengine.h"
 #include "gui/covers.h"
 #include "models/mpdlibrarymodel.h"
+#include "models/playqueuemodel.h"
 #include "mpd-interface/cuefile.h"
 #include "network/networkaccessmanager.h"
 #include "network/translationservice.h"
@@ -38,6 +39,7 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDesktopServices>
+#include <QDir>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -45,6 +47,7 @@
 #include <QNetworkRequest>
 #include <QRegularExpression>
 #include <QScrollBar>
+#include <QStandardPaths>
 #include <QTextDocument>
 #include <QTimer>
 #include <QUrl>
@@ -103,6 +106,104 @@ static QString appendLink(const QString& html, const QString& link)
 	return result + link;
 }
 
+// Loads the "Recommended Recordings" dataset: a user override file (same
+// config directory as translation.ini - see TranslationService) when
+// present and valid, otherwise the bundled resource. Re-read on every call
+// rather than cached, since it is only ever parsed once per song change and
+// doing so lets an edited override file be picked up without a restart.
+static RecommendedRecordings::Dataset loadRecommendedRecordingsDataset()
+{
+	const QString overridePath = QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)).filePath(QLatin1String("recommendedrecordings.json"));
+	QFile overrideFile(overridePath);
+	if (overrideFile.open(QIODevice::ReadOnly)) {
+		const RecommendedRecordings::Dataset overrideDataset = RecommendedRecordings::parseDataset(overrideFile.readAll());
+		if (!overrideDataset.works.isEmpty()) {
+			return overrideDataset;
+		}
+	}
+	QFile bundled(QLatin1String(":/recommendedrecordings.json"));
+	if (bundled.open(QIODevice::ReadOnly)) {
+		return RecommendedRecordings::parseDataset(bundled.readAll());
+	}
+	return RecommendedRecordings::Dataset();
+}
+
+static QString recommendedRecordingAlbumUrl(const QString& artist, const QString& albumId)
+{
+	QUrl url(QLatin1String("cantata:///"));
+	QUrlQuery query;
+	query.addQueryItem(QLatin1String("artist"), artist);
+	query.addQueryItem(QLatin1String("albumId"), albumId);
+	url.setQuery(query);
+	return url.toString();
+}
+
+// A library album (from MpdLibraryModel::getArtistOrComposerAlbums()) that
+// has been confirmed, via RecommendedRecordings::worksMatch(), to represent
+// the same work as the song currently shown.
+struct RecommendedRecordingLibraryMatch {
+	LibraryDb::Album album;
+	QString performer;// Album's trailing "(Performer - Year)", or its artist.
+	QString year;
+	bool nowPlaying = false;
+};
+
+static QString renderRecommendedRecordingLine(const RecommendedRecordings::Recording& r, const RecommendedRecordingLibraryMatch* libraryMatch)
+{
+	QStringList names;
+	if (!r.soloist.isEmpty()) {
+		names << r.soloist.toHtmlEscaped();
+	}
+	if (!r.conductor.isEmpty()) {
+		names << r.conductor.toHtmlEscaped();
+	}
+	if (!r.ensemble.isEmpty()) {
+		names << r.ensemble.toHtmlEscaped();
+	}
+	QString line = names.join(QLatin1String(" · "));
+
+	QStringList labelParts;
+	if (!r.label.isEmpty()) {
+		labelParts << r.label.toHtmlEscaped();
+	}
+	if (!r.catalogue.isEmpty()) {
+		labelParts << r.catalogue.toHtmlEscaped();
+	}
+	if (!labelParts.isEmpty()) {
+		line += (line.isEmpty() ? QString() : QLatin1String(" — ")) + labelParts.join(QLatin1Char(' '));
+	}
+	if (!r.year.isEmpty()) {
+		line += QLatin1String(" (") + r.year.toHtmlEscaped() + QLatin1Char(')');
+	}
+
+	// Never show a guide/rating for an AI suggestion - only ever populated
+	// for a dataset entry to begin with, but enforced here too.
+	if (!r.isAi && !r.guide.isEmpty()) {
+		QString guideText = r.guide.toHtmlEscaped();
+		if (!r.edition.isEmpty()) {
+			guideText += QLatin1Char(' ') + r.edition.toHtmlEscaped();
+		}
+		if (!r.rating.isEmpty()) {
+			guideText += QLatin1String(": ") + r.rating.toHtmlEscaped();
+		}
+		if (!r.source.isEmpty()) {
+			line += QLatin1String(" (<a href=\"") + r.source.toHtmlEscaped() + QLatin1String("\">") + guideText + QLatin1String("</a>)");
+		}
+		else {
+			line += QLatin1String(" (") + guideText + QLatin1String(")");
+		}
+	}
+
+	if (libraryMatch) {
+		QString linkText = AlbumView::tr("Open in Library");
+		if (libraryMatch->nowPlaying) {
+			linkText += QLatin1String(" (") + AlbumView::tr("now playing") + QLatin1Char(')');
+		}
+		line += QLatin1String(" — <a href=\"") + recommendedRecordingAlbumUrl(libraryMatch->album.artist, libraryMatch->album.id).toHtmlEscaped() + QLatin1String("\">") + linkText.toHtmlEscaped() + QLatin1String("</a>");
+	}
+	return line;
+}
+
 AlbumView::AlbumView(QWidget* p)
 	: View(p), detailsReceived(0), workJob(nullptr), workSummaryIsZh(false)
 {
@@ -122,6 +223,7 @@ AlbumView::AlbumView(QWidget* p)
 	connect(engine, SIGNAL(searchResult(QString, QString)), this, SLOT(searchResponse(QString, QString)));
 	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::detailsTranslationReady);
 	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::workIntroTranslationReady);
+	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::recommendedRecordingsTranslationReady);
 	connect(Covers::self(), SIGNAL(cover(Song, QImage, QString)), SLOT(coverRetrieved(Song, QImage, QString)));
 	connect(Covers::self(), SIGNAL(coverUpdated(Song, QImage, QString)), SLOT(coverUpdated(Song, QImage, QString)));
 	connect(text, SIGNAL(anchorClicked(QUrl)), SLOT(playSong(QUrl)));
@@ -237,6 +339,13 @@ void AlbumView::update(const Song& song, bool force)
 void AlbumView::playSong(const QUrl& url)
 {
 	if (url.scheme() == constScheme) {
+		QUrlQuery q(url);
+		if (q.hasQueryItem(QLatin1String("artist")) && q.hasQueryItem(QLatin1String("albumId"))) {
+			// A "Recommended Recordings" library link - see
+			// rebuildRecommendedRecordingsHtml() - rather than a track.
+			emit findAlbum(q.queryItemValue(QLatin1String("artist")), q.queryItemValue(QLatin1String("albumId")));
+			return;
+		}
 		emit playSong(url.path().mid(1));// Remove leading /
 	}
 	else if (CueFile::isCue(url.toString())) {
@@ -295,6 +404,7 @@ void AlbumView::getDetails()
 	engine->cancel();
 	abortWorkLookup();
 	currentWork = WorkInfo::deriveWork(currentSong.composer(), currentSong.album, currentSong.title, currentSong.firstGenre());
+	updateRecommendedRecordings();
 	for (const QString& lang : engine->getLangs()) {
 		QString prefix = engine->getPrefix(lang);
 		QString cachedFile = cacheFileName(Covers::fixArtist(currentSong.albumArtistOrComposer()), currentSong.album, prefix, false);
@@ -426,10 +536,13 @@ QString AlbumView::buildWorkIntroductionSection(bool showOriginal) const
 		// Priority 2: the work's own Wikipedia article.
 		body = showOriginal ? workIntroOriginalHtml : (workIntroHtml.isEmpty() ? workIntroOriginalHtml : workIntroHtml);
 	}
-	else {
-		return QString();
+
+	QString html;
+	if (!body.isEmpty()) {
+		html = View::subHeader(tr("Work Introduction")) + body;
 	}
-	QString html = View::subHeader(tr("Work Introduction")) + body;
+	// Shown whenever the song is a valid classical work, even when there is
+	// no introduction text at all yet (or ever).
 	if (!recommendedRecordings.isEmpty()) {
 		html += recommendedRecordings;
 	}
@@ -487,6 +600,11 @@ void AlbumView::clearDetails()
 	workIntroSource.clear();
 	workIntroTranslationContext.clear();
 	workIntroLink.clear();
+	recommendedRecordings.clear();
+	recRecordings.clear();
+	recAiRecordings.clear();
+	recAiSource.clear();
+	recAiContext.clear();
 	detailsReceived = 0;
 }
 
@@ -694,6 +812,136 @@ void AlbumView::abortWorkLookup()
 		workJob = nullptr;
 	}
 	workSelectedTitle.clear();
+}
+
+void AlbumView::updateRecommendedRecordings()
+{
+	recRecordings.clear();
+	recAiRecordings.clear();
+	recAiSource.clear();
+	recAiContext.clear();
+	recommendedRecordings.clear();
+
+	if (!currentWork.valid) {
+		return;
+	}
+
+	const RecommendedRecordings::Dataset dataset = loadRecommendedRecordingsDataset();
+	const int matchIndex = RecommendedRecordings::findMatchingWork(dataset, currentWork.composer, currentWork.catalogueNumber, currentWork.title);
+	if (matchIndex >= 0) {
+		recRecordings = dataset.works.at(matchIndex).recordings;
+	}
+	else if (TranslationService::self()->isEnabled()) {
+		recAiSource = currentWork.composer + QLatin1String(" — ") + currentWork.title;
+		if (!currentWork.catalogueNumber.isEmpty()) {
+			recAiSource += QLatin1Char(' ') + currentWork.catalogueNumber;
+		}
+		recAiContext = QLatin1String("recommended-recordings-v1");
+		const QString cached = TranslationService::self()->translate(recAiSource, recAiContext);
+		if (cached != recAiSource) {
+			// Already cached - recommendedRecordingsTranslationReady() will
+			// not fire for this one, so parse it here instead.
+			recAiRecordings = RecommendedRecordings::parseAiRecordings(cached);
+		}
+	}
+
+	rebuildRecommendedRecordingsHtml();
+}
+
+void AlbumView::recommendedRecordingsTranslationReady(const QString& source, const QString& context, const QString& translation)
+{
+	if (recAiContext.isEmpty() || source != recAiSource || context != recAiContext) {
+		return;
+	}
+	if (translation == source) {
+		return;
+	}
+	recAiRecordings = RecommendedRecordings::parseAiRecordings(translation);
+	rebuildRecommendedRecordingsHtml();
+	updateDetails();
+}
+
+void AlbumView::rebuildRecommendedRecordingsHtml()
+{
+	recommendedRecordings.clear();
+	if (!currentWork.valid) {
+		return;
+	}
+
+	QList<RecommendedRecordingLibraryMatch> composerMatches;
+	if (!currentSong.isNonMPD()) {
+		const QList<LibraryDb::Album> albums = MpdLibraryModel::self()->getArtistOrComposerAlbums(currentWork.composer);
+		Song playing;
+		bool havePlaying = false;
+		for (const LibraryDb::Album& album : albums) {
+			const WorkInfo::Candidate albumWork = WorkInfo::deriveWork(currentWork.composer, album.name);
+			if (!albumWork.valid) {
+				continue;
+			}
+			if (!RecommendedRecordings::worksMatch(albumWork.catalogueNumber, albumWork.title, QStringList(), currentWork.catalogueNumber, currentWork.title, QStringList())) {
+				continue;
+			}
+			if (!havePlaying) {
+				playing = PlayQueueModel::self()->getSongByRow(PlayQueueModel::self()->currentSongRow());
+				havePlaying = true;
+			}
+			RecommendedRecordingLibraryMatch match;
+			match.album = album;
+			match.performer = !albumWork.performer.isEmpty() ? albumWork.performer : album.artist;
+			match.year = !albumWork.year.isEmpty() ? albumWork.year : (album.year > 0 ? QString::number(album.year) : QString());
+			match.nowPlaying = !playing.isEmpty() && playing.album == album.name && playing.albumArtistOrComposer() == album.artist;
+			composerMatches << match;
+		}
+	}
+
+	auto findLibraryMatch = [&composerMatches](const RecommendedRecordings::Recording& r) -> const RecommendedRecordingLibraryMatch* {
+		for (const RecommendedRecordingLibraryMatch& m : composerMatches) {
+			if ((!r.soloist.isEmpty() && RecommendedRecordings::performerNameMatches(m.performer, r.soloist))
+			    || (!r.conductor.isEmpty() && RecommendedRecordings::performerNameMatches(m.performer, r.conductor))) {
+				return &m;
+			}
+		}
+		return nullptr;
+	};
+
+	QStringList lines;
+	for (const RecommendedRecordings::Recording& r : recRecordings) {
+		lines << renderRecommendedRecordingLine(r, findLibraryMatch(r));
+	}
+
+	QString html;
+	if (!lines.isEmpty()) {
+		html += QLatin1String("<p>") + lines.join(QLatin1String("<br/>")) + QLatin1String("</p>");
+	}
+
+	if (!recAiRecordings.isEmpty()) {
+		QStringList aiLines;
+		for (const RecommendedRecordings::Recording& r : recAiRecordings) {
+			aiLines << renderRecommendedRecordingLine(r, findLibraryMatch(r));
+		}
+		html += QLatin1String("<p><b>") + tr("AI suggestions (not verified by any guide)").toHtmlEscaped() + QLatin1String("</b><br/>") + aiLines.join(QLatin1String("<br/>")) + QLatin1String("</p>");
+	}
+
+	if (!composerMatches.isEmpty()) {
+		QStringList libraryLines;
+		for (const RecommendedRecordingLibraryMatch& m : composerMatches) {
+			QString line = m.performer.toHtmlEscaped();
+			if (!m.year.isEmpty()) {
+				line += QLatin1String(" (") + m.year.toHtmlEscaped() + QLatin1Char(')');
+			}
+			line += QLatin1String(" — <a href=\"") + recommendedRecordingAlbumUrl(m.album.artist, m.album.id).toHtmlEscaped() + QLatin1String("\">") + tr("Open in Library").toHtmlEscaped() + QLatin1String("</a>");
+			if (m.nowPlaying) {
+				line += QLatin1String(" (") + tr("now playing").toHtmlEscaped() + QLatin1Char(')');
+			}
+			libraryLines << line;
+		}
+		html += QLatin1String("<p><b>") + tr("In Your Library").toHtmlEscaped() + QLatin1String("</b><br/>") + libraryLines.join(QLatin1String("<br/>")) + QLatin1String("</p>");
+	}
+
+	if (!html.isEmpty()) {
+		html = View::subHeader(tr("Recommended Recordings")) + html;
+	}
+	recommendedRecordings = html;
 }
 
 #include "moc_albumview.cpp"

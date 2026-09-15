@@ -68,12 +68,12 @@ private:
 		return QUrl(QString::fromLatin1("http://127.0.0.1:%1").arg(server.serverPort()));
 	}
 
-	static void serve(QTcpServer& server, int& requestCount, const QByteArray& body, int statusCode = 200, int delayMs = 0)
+	static void serve(QTcpServer& server, int& requestCount, const QByteArray& body, int statusCode = 200, int delayMs = 0, QByteArray* capturedBody = nullptr)
 	{
-		QObject::connect(&server, &QTcpServer::newConnection, &server, [&server, &requestCount, body, statusCode, delayMs]() {
+		QObject::connect(&server, &QTcpServer::newConnection, &server, [&server, &requestCount, body, statusCode, delayMs, capturedBody]() {
 			while (QTcpSocket* socket = server.nextPendingConnection()) {
 				QObject::connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
-				QObject::connect(socket, &QTcpSocket::readyRead, socket, [socket, &server, &requestCount, body, statusCode, delayMs]() {
+				QObject::connect(socket, &QTcpSocket::readyRead, socket, [socket, &server, &requestCount, body, statusCode, delayMs, capturedBody]() {
 					QByteArray& request = *static_cast<QByteArray*>(socket->property("requestBuffer").value<void*>());
 					request += socket->readAll();
 					const int headerEnd = request.indexOf("\r\n\r\n");
@@ -85,6 +85,7 @@ private:
 					}
 					if (request.size() < headerEnd + 4 + contentLength || socket->property("answered").toBool()) return;
 					socket->setProperty("answered", true);
+					if (capturedBody) *capturedBody = request.mid(headerEnd + 4, contentLength);
 					++requestCount;
 					const QByteArray status = QByteArray::number(statusCode) + (statusCode == 200 ? " OK" : " Error");
 					const QByteArray response = "HTTP/1.1 " + status + "\r\nContent-Type: application/json\r\nContent-Length: " + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body;
@@ -543,6 +544,35 @@ private Q_SLOTS:
 		QTRY_COMPARE(ready.count(), 1);
 		QVERIFY(proxyQueries > 0);
 		QNetworkProxy::setApplicationProxy(QNetworkProxy::NoProxy);
+	}
+
+	void recommendedRecordingsContextUsesDedicatedSystemPrompt()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		int requestCount = 0;
+		QByteArray capturedBody;
+		QJsonObject response;
+		response.insert(QLatin1String("response"), QStringLiteral("[{\"soloist\":\"Rudolf Serkin\",\"conductor\":\"\",\"ensemble\":\"\",\"label\":\"\",\"year\":\"\"}]"));
+		serve(server, requestCount, QJsonDocument(response).toJson(QJsonDocument::Compact), 200, 0, &capturedBody);
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		writeConfig(config, serverUrl(server));
+
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		service.translate(QLatin1String("Ludwig van Beethoven — Piano Concerto No.5, Op.73"), QLatin1String("recommended-recordings-v1"));
+		QTRY_COMPARE(ready.count(), 1);
+		QCOMPARE(requestCount, 1);
+
+		const QJsonObject payload = QJsonDocument::fromJson(capturedBody).object();
+		const QString systemPrompt = payload.value(QLatin1String("system")).toString();
+		// The dedicated recommended-recordings-v1 prompt, not the generic
+		// translation one - and it must never ask for ratings/guide names.
+		QVERIFY(systemPrompt.contains(QLatin1String("JSON array")));
+		QVERIFY(systemPrompt.contains(QLatin1String("soloist, conductor, ensemble, label, and year")));
+		QVERIFY(systemPrompt.contains(QLatin1String("no ratings, no guide")) || systemPrompt.contains(QLatin1String("Include no ratings")));
+		QVERIFY(!systemPrompt.contains(QLatin1String("translation engine")));
 	}
 
 	void zzDisabledNetworkStillReadsCache()

@@ -24,6 +24,7 @@
 #ifndef ALBUM_VIEW_H
 #define ALBUM_VIEW_H
 
+#include "recommendedrecordings.h"
 #include "view.h"
 #include "workinfo.h"
 #include <QList>
@@ -50,6 +51,9 @@ public:
 
 Q_SIGNALS:
 	void playSong(const QString& file);
+	// Emitted when a "Recommended Recordings" library link is clicked - see
+	// ArtistView::findAlbum() for the sibling signal this mirrors.
+	void findAlbum(const QString& artist, const QString& albumId);
 
 public Q_SLOTS:
 	void coverRetrieved(const Song& s, const QImage& img, const QString& file);
@@ -67,6 +71,7 @@ private Q_SLOTS:
 	void workPagePropsFinished();
 	void workSummaryFinished();
 	void showOriginalToggled();
+	void recommendedRecordingsTranslationReady(const QString& source, const QString& context, const QString& translation);
 
 private:
 	void clearDetails();
@@ -84,6 +89,11 @@ private:
 	void startWorkSearch();
 	void applyWorkSummary(const WorkInfo::Summary& summary, bool isZh);
 	void abortWorkLookup();
+
+	// "Recommended Recordings" (see context/recommendedrecordings.h/.cpp for
+	// the pure dataset/AI-response/library matching logic).
+	void updateRecommendedRecordings();
+	void rebuildRecommendedRecordingsHtml();
 
 private:
 	QString currentArtist;
@@ -112,9 +122,13 @@ private:
 	QString workIntroSource;
 	QString workIntroTranslationContext;
 	QString workIntroLink;
-	// Hook for a later "Top 5 recommended recordings" section - always
-	// empty for now, appended after the work introduction when set.
+	// "Recommended Recordings" section, appended after the work
+	// introduction when non-empty - see updateRecommendedRecordings().
 	QString recommendedRecordings;
+	QList<RecommendedRecordings::Recording> recRecordings;// Bundled/override dataset match, if any.
+	QList<RecommendedRecordings::Recording> recAiRecordings;// AI fallback, used only when the dataset has no match.
+	QString recAiSource;
+	QString recAiContext;
 
 	NetworkJob* workJob;
 	QString workSelectedTitle;

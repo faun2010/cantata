@@ -94,3 +94,11 @@ target_link_libraries(workinfo_test PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
 )
 add_test(NAME workinfo_test COMMAND workinfo_test)
+
+add_executable(recommendedrecordings_test recommendedrecordings_test.cpp ../context/recommendedrecordings.cpp ../context/workinfo.cpp)
+target_include_directories(recommendedrecordings_test PRIVATE ..)
+target_link_libraries(recommendedrecordings_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Test
+)
+add_test(NAME recommendedrecordings_test COMMAND recommendedrecordings_test)
