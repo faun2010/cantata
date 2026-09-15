@@ -22,6 +22,7 @@
  */
 
 #include "networkproxyfactory.h"
+#include <QHostAddress>
 #include <QMutexLocker>
 #include <QSettings>
 #include <QStringList>
@@ -75,8 +76,23 @@ void NetworkProxyFactory::reloadSettings()
 }
 #endif
 
+static bool isLoopbackHost(const QString& host)
+{
+	if (0 == host.compare(QLatin1String("localhost"), Qt::CaseInsensitive) || host.endsWith(QLatin1String(".localhost"), Qt::CaseInsensitive)) {
+		return true;
+	}
+	QHostAddress address(host);
+	return !address.isNull() && address.isLoopback();
+}
+
 QList<QNetworkProxy> NetworkProxyFactory::queryProxy(const QNetworkProxyQuery& query)
 {
+	// This factory is application-wide, so it also applies to the MPD
+	// QTcpSocket. Never send loopback connections through a proxy.
+	if (isLoopbackHost(query.peerHostName())) {
+		return QList<QNetworkProxy>() << QNetworkProxy(QNetworkProxy::NoProxy);
+	}
+
 #ifdef ENABLE_PROXY_CONFIG
 	QMutexLocker l(&mutex);
 	QNetworkProxy ret;
