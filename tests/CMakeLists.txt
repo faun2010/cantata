@@ -87,7 +87,7 @@ target_include_directories(biographytranslation_test PRIVATE ..)
 target_link_libraries(biographytranslation_test PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Test)
 add_test(NAME biographytranslation_test COMMAND biographytranslation_test)
 
-add_executable(workinfo_test workinfo_test.cpp ../context/workinfo.cpp)
+add_executable(workinfo_test workinfo_test.cpp ../context/workinfo.cpp ../context/composertable.cpp)
 target_include_directories(workinfo_test PRIVATE ..)
 target_link_libraries(workinfo_test PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
@@ -95,7 +95,15 @@ target_link_libraries(workinfo_test PRIVATE
 )
 add_test(NAME workinfo_test COMMAND workinfo_test)
 
-add_executable(recommendedrecordings_test recommendedrecordings_test.cpp ../context/recommendedrecordings.cpp ../context/workinfo.cpp)
+add_executable(composertable_test composertable_test.cpp ../context/composertable.cpp)
+target_include_directories(composertable_test PRIVATE ..)
+target_link_libraries(composertable_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Test
+)
+add_test(NAME composertable_test COMMAND composertable_test)
+
+add_executable(recommendedrecordings_test recommendedrecordings_test.cpp ../context/recommendedrecordings.cpp ../context/workinfo.cpp ../context/composertable.cpp)
 target_include_directories(recommendedrecordings_test PRIVATE ..)
 target_link_libraries(recommendedrecordings_test PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
@@ -103,7 +111,7 @@ target_link_libraries(recommendedrecordings_test PRIVATE
 )
 add_test(NAME recommendedrecordings_test COMMAND recommendedrecordings_test)
 
-add_executable(workdossier_test workdossier_test.cpp ../context/workdossier.cpp ../context/recommendedrecordings.cpp ../context/workinfo.cpp)
+add_executable(workdossier_test workdossier_test.cpp ../context/workdossier.cpp ../context/recommendedrecordings.cpp ../context/workinfo.cpp ../context/composertable.cpp)
 target_include_directories(workdossier_test PRIVATE ..)
 target_link_libraries(workdossier_test PRIVATE
     Qt${QT_VERSION_MAJOR}::Core

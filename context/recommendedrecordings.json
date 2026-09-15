@@ -354,6 +354,160 @@
           "comment": "tremendous electricity and orchestral bravura; D&T still unsurpassed"
         }
       ]
+    },
+    {
+      "composer": "Johann Sebastian Bach",
+      "title": "Brandenburg Concertos",
+      "catalogue": "BWV 1046-1051",
+      "aliases": [
+        "Brandenburgische Konzerte",
+        "Brandenburg Concerto"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "",
+          "conductor": "Otto Klemperer",
+          "ensemble": "Philharmonia Orchestra",
+          "label": "Columbia",
+          "catalogue": "SAX 2408 (9LPs)",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "",
+          "reviews": []
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Adolf Busch",
+          "ensemble": "Busch Chamber Players",
+          "label": "EMI",
+          "catalogue": "(M) CHS7 64047-2 (3)",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "In mono, on modern instruments; greater authenticity of spirit than many rigid modern performances. Coupled with Orchestral Suites 1-4.",
+          "reviews": []
+        }
+      ]
+    },
+    {
+      "composer": "Johann Sebastian Bach",
+      "title": "Orchestral Suites",
+      "catalogue": "BWV 1066-1069",
+      "aliases": [
+        "Orchestersuiten",
+        "Orchestral Suites",
+        "Ouvertüren",
+        "Suites for Orchestra",
+        "Suites pour orchestre"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Adolf Busch",
+          "ensemble": "Busch Chamber Players",
+          "label": "EMI",
+          "catalogue": "(M) CHS7 64047-2 (3)",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "In mono, on modern instruments; greater authenticity of spirit than many rigid modern performances. Covers Orchestral Suites 1-4 only, not the Triple Concerto BWV 1044.",
+          "reviews": []
+        }
+      ]
+    },
+    {
+      "composer": "Johann Sebastian Bach",
+      "title": "Passacaglia and Fugue in C minor",
+      "catalogue": "BWV 582",
+      "aliases": [
+        "Passacaglia and Fugue",
+        "Passacaglia und Fuge"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "Simon Preston, organ",
+          "conductor": "",
+          "ensemble": "",
+          "label": "Deutsche Grammophon",
+          "catalogue": "435 381-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "Magnificent demonstration of the splendour and power of Bach's more ambitious organ statements; one of the very finest Bach organ collections of the digital CD era. Includes Passacaglia BWV 582; does not include the Dorian Toccata BWV 538 or the organ concertos BWV 592-597.",
+          "reviews": []
+        }
+      ]
+    },
+    {
+      "composer": "George Frideric Handel",
+      "title": "Messiah",
+      "catalogue": "HWV 56",
+      "aliases": [
+        "Der Messias"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "Jennifer Vyvyan, Monica Sinclair, Jon Vickers, Giorgio Tozzi",
+          "conductor": "Thomas Beecham",
+          "ensemble": "Royal Philharmonic Orchestra and Chorus",
+          "label": "RCA",
+          "catalogue": "(M) GD 61266-20 (3)",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "Its sense of exultant glory in the riches of Handel's masterpiece is life-enhancing.",
+          "reviews": []
+        }
+      ]
+    },
+    {
+      "composer": "Pyotr Ilyich Tchaikovsky",
+      "title": "1812 Overture",
+      "catalogue": "Op. 49",
+      "aliases": [
+        "Ouverture solennelle 1812"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "Chicago Symphony Orchestra",
+          "label": "RCA / Analogue Productions",
+          "catalogue": "AAPC 2241-P",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "Listed under \"Tchaikovsky, Mendelssohn, et al.: 1812 Overture, etc.\"",
+          "reviews": []
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG96",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Antal Dorati",
+          "ensemble": "London Symphony Orchestra",
+          "label": "Mercury",
+          "catalogue": "(M) 434 360-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "Most famous of all Mercury records; the spectacle is quite extraordinary. Coupled with Capriccio Italien.",
+          "reviews": []
+        }
+      ]
     }
   ]
 }

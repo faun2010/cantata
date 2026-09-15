@@ -90,8 +90,11 @@ QString normaliseName(const QString& name);
 
 // True when two works (each described by its own catalogue number and
 // title, with optional aliases for the second) are plausibly the same
-// piece: either their normalised catalogue numbers are equal (and
-// non-empty), or one normalised title/alias is contained in the other.
+// piece: their normalised catalogue numbers are equal (and non-empty), or
+// they name the same catalogue system (e.g. both "BWV") whose numbered
+// work(s) overlap - so a single work's catalogue number ("BWV 1046") still
+// matches a dataset entry covering the set it belongs to ("BWV
+// 1046-1051") - or one normalised title/alias is contained in the other.
 bool worksMatch(const QString& catalogueA, const QString& titleA, const QStringList& aliasesA, const QString& catalogueB, const QString& titleB, const QStringList& aliasesB);
 
 // True when "performerOrArtist" (an album's performer, parsed from its

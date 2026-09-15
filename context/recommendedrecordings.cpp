@@ -58,6 +58,63 @@ QString recordingFieldString(const QJsonObject& obj, const char* key)
 	return obj.value(QLatin1String(key)).toString().trimmed();
 }
 
+// The leading letters of a catalogue number, e.g. "BWV" from "BWV 1046" or
+// "Op" from "Op. 73" - lower-cased, for comparing two catalogue numbers'
+// systems regardless of case.
+QString catalogueSystemLetters(const QString& catalogue)
+{
+	static const QRegularExpression rx(QStringLiteral("^\\s*([A-Za-z]+)"));
+	const QRegularExpressionMatch m = rx.match(catalogue);
+	return m.hasMatch() ? m.captured(1).toLower() : QString();
+}
+
+// The numbered work(s) a catalogue number identifies, as inclusive
+// [start, end] ranges - a single number becomes a one-element range, e.g.
+// "BWV 1046" -> [(1046, 1046)], "BWV 1046-1051" -> [(1046, 1051)], "BWV
+// 1066,1069" -> [(1066, 1066), (1069, 1069)].
+QList<QPair<int, int>> catalogueNumberRanges(const QString& catalogue)
+{
+	QList<QPair<int, int>> ranges;
+	static const QRegularExpression rx(QStringLiteral("(\\d+)(?:\\s*-\\s*(\\d+))?"));
+	QRegularExpressionMatchIterator it = rx.globalMatch(catalogue);
+	while (it.hasNext()) {
+		const QRegularExpressionMatch m = it.next();
+		const int start = m.captured(1).toInt();
+		const int end = m.captured(2).isEmpty() ? start : m.captured(2).toInt();
+		ranges << qMakePair(qMin(start, end), qMax(start, end));
+	}
+	return ranges;
+}
+
+// True when "catalogueA"/"catalogueB" name the same catalogue system (e.g.
+// both "BWV") and at least one of A's numbered work(s) falls within (or
+// overlaps) one of B's - so a single work's catalogue number ("BWV 1046")
+// matches a dataset entry covering the whole set it belongs to ("BWV
+// 1046-1051"), and a comma/dash-separated album catalogue ("BWV
+// 1066,1069") matches a dataset range it is contained in ("BWV
+// 1066-1069") - see findMatchingWork()/worksMatch().
+bool catalogueRangesOverlap(const QString& catalogueA, const QString& catalogueB)
+{
+	if (catalogueA.trimmed().isEmpty() || catalogueB.trimmed().isEmpty()) {
+		return false;
+	}
+	const QString systemA = catalogueSystemLetters(catalogueA);
+	const QString systemB = catalogueSystemLetters(catalogueB);
+	if (systemA.isEmpty() || systemA != systemB) {
+		return false;
+	}
+	const QList<QPair<int, int>> rangesA = catalogueNumberRanges(catalogueA);
+	const QList<QPair<int, int>> rangesB = catalogueNumberRanges(catalogueB);
+	for (const QPair<int, int>& a : rangesA) {
+		for (const QPair<int, int>& b : rangesB) {
+			if (a.first <= b.second && b.first <= a.second) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 }// namespace
 
 QString normaliseCatalogue(const QString& catalogue)
@@ -82,6 +139,9 @@ bool worksMatch(const QString& catalogueA, const QString& titleA, const QStringL
 	const QString normCatalogueA = normaliseCatalogue(catalogueA);
 	const QString normCatalogueB = normaliseCatalogue(catalogueB);
 	if (!normCatalogueA.isEmpty() && !normCatalogueB.isEmpty() && normCatalogueA == normCatalogueB) {
+		return true;
+	}
+	if (catalogueRangesOverlap(catalogueA, catalogueB)) {
 		return true;
 	}
 

@@ -117,7 +117,7 @@ private Q_SLOTS:
 		// "Op.73" (as WorkInfo::deriveWork would produce it) vs the dataset's
 		// "Op. 73" - different punctuation/spacing, same catalogue number.
 		const WorkInfo::Candidate work = WorkInfo::deriveWork(
-		    QStringLiteral("Ludwig van Beethoven"),
+		    QStringLiteral("Ludwig van Beethoven"), QString(), QString(),
 		    QStringLiteral("Piano Concerto No.5, Op.73 'Emperor' (Serkin - 1981)"));
 		QCOMPARE(findMatchingWork(dataset, work.composer, work.catalogueNumber, work.title), 0);
 	}
@@ -128,7 +128,7 @@ private Q_SLOTS:
 		// No catalogue number at all this time - only the alias "Piano
 		// Concerto No.5" (contained within the derived title) should match.
 		const WorkInfo::Candidate work = WorkInfo::deriveWork(
-		    QStringLiteral("Ludwig van Beethoven"),
+		    QStringLiteral("Ludwig van Beethoven"), QString(), QString(),
 		    QStringLiteral("Piano Concerto No.5 'Emperor' (Serkin - 1981)"));
 		QVERIFY(work.catalogueNumber.isEmpty());
 		QCOMPARE(findMatchingWork(dataset, work.composer, work.catalogueNumber, work.title), 0);
@@ -138,9 +138,39 @@ private Q_SLOTS:
 	{
 		const Dataset dataset = emperorDataset();
 		const WorkInfo::Candidate work = WorkInfo::deriveWork(
-		    QStringLiteral("Ludwig van Beethoven"),
+		    QStringLiteral("Ludwig van Beethoven"), QString(), QString(),
 		    QStringLiteral("Piano Concerto No.2, Op.19 (Serkin - 1984)"));
 		QCOMPARE(findMatchingWork(dataset, work.composer, work.catalogueNumber, work.title), -1);
+	}
+
+	void worksMatchHandlesCatalogueRangesVsASingleNumber()
+	{
+		// A single work's catalogue number ("BWV 1046") matches a dataset
+		// entry covering the whole numbered set it belongs to
+		// ("BWV 1046-1051") - see catalogueRangesOverlap() in
+		// recommendedrecordings.cpp.
+		QVERIFY(worksMatch(QStringLiteral("BWV 1046"), QStringLiteral("Unrelated Title"), {}, QStringLiteral("BWV 1046-1051"), QStringLiteral("Brandenburg Concertos"), {}));
+		// Outside the range - no match.
+		QVERIFY(!worksMatch(QStringLiteral("BWV 1052"), QStringLiteral("Unrelated Title"), {}, QStringLiteral("BWV 1046-1051"), QStringLiteral("Brandenburg Concertos"), {}));
+		// Different catalogue system entirely - never matches just because
+		// the numbers happen to overlap.
+		QVERIFY(!worksMatch(QStringLiteral("HWV 1046"), QStringLiteral("Unrelated Title"), {}, QStringLiteral("BWV 1046-1051"), QStringLiteral("Brandenburg Concertos"), {}));
+	}
+
+	void worksMatchHandlesACommaListOverlappingADatasetRange()
+	{
+		// A comma/dash-separated album catalogue ("BWV 1066,1069") matches a
+		// dataset range it is contained in ("BWV 1066-1069").
+		QVERIFY(worksMatch(QStringLiteral("BWV 1066,1069"), QStringLiteral("Unrelated Title"), {}, QStringLiteral("BWV 1066-1069"), QStringLiteral("Orchestral Suites"), {}));
+	}
+
+	void worksMatchByTitleAliasWhenNeitherSideHasACatalogueNumber()
+	{
+		// No catalogue number on either side at all - only the alias match
+		// (already covered end-to-end by
+		// findMatchingWorkMatchesByAliasWithoutACatalogueNumber() above)
+		// decides it.
+		QVERIFY(worksMatch(QString(), QStringLiteral("Orchestersuiten"), {}, QString(), QStringLiteral("Orchestral Suites"), {QStringLiteral("Orchestersuiten")}));
 	}
 
 	void findMatchingWorkRequiresComposerSurnameMatch()
@@ -195,7 +225,7 @@ private Q_SLOTS:
 		// recordings: one whose soloist is really on that album, one who
 		// isn't.
 		const WorkInfo::Candidate album = WorkInfo::deriveWork(
-		    QStringLiteral("Ludwig van Beethoven"),
+		    QStringLiteral("Ludwig van Beethoven"), QString(), QString(),
 		    QStringLiteral("Piano Concerto No.5, Op.73 'Emperor' (Serkin - 1981)"));
 		QCOMPARE(album.performer, QString("Serkin"));
 		QVERIFY(performerNameMatches(album.performer, QStringLiteral("Rudolf Serkin")));

@@ -364,6 +364,18 @@ void AlbumView::update(const Song& song, bool force)
 	else if (song.title != currentSong.title) {
 		currentSong = song;
 		getTrackListing();
+		// getDetails() is only called on an album/artist change above, but a
+		// multi-work album (e.g. "Kaffee-Kantate BWV 211 - Bauern-Kantate BWV
+		// 212") picks its work based on the track title - see
+		// WorkInfo::deriveWork(). Re-derive it here and refresh the work
+		// introduction/recommended recordings when it actually changed,
+		// without refetching the (unchanged) album description itself.
+		const WorkInfo::Candidate newWork = WorkInfo::deriveWork(currentSong.composer(), currentSong.artist, currentSong.albumartist, currentSong.album, currentSong.title, currentSong.firstGenre());
+		if (newWork.valid != currentWork.valid || newWork.composer != currentWork.composer || newWork.title != currentWork.title) {
+			currentWork = newWork;
+			updateRecommendedRecordings();
+			updateWorkIntroductionSource();
+		}
 		updateDetails(true);
 	}
 }
@@ -435,7 +447,7 @@ void AlbumView::getDetails()
 {
 	engine->cancel();
 	abortWorkLookup();
-	currentWork = WorkInfo::deriveWork(currentSong.composer(), currentSong.album, currentSong.title, currentSong.firstGenre());
+	currentWork = WorkInfo::deriveWork(currentSong.composer(), currentSong.artist, currentSong.albumartist, currentSong.album, currentSong.title, currentSong.firstGenre());
 	updateRecommendedRecordings();
 	for (const QString& lang : engine->getLangs()) {
 		QString prefix = engine->getPrefix(lang);
@@ -1151,7 +1163,7 @@ void AlbumView::rebuildRecommendedRecordingsHtml()
 		Song playing;
 		bool havePlaying = false;
 		for (const LibraryDb::Album& album : albums) {
-			const WorkInfo::Candidate albumWork = WorkInfo::deriveWork(currentWork.composer, album.name);
+			const WorkInfo::Candidate albumWork = WorkInfo::deriveWork(currentWork.composer, album.artist, QString(), album.name);
 			if (!albumWork.valid) {
 				continue;
 			}

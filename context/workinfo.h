@@ -56,22 +56,30 @@ struct Candidate {
 	QString searchQuery;
 };
 
-// Derives a work candidate from a song's composer and album tags.
-// "songTitle" and "genre" are only consulted as a fallback source for
-// genreKeyword when the album title itself contains no recognisable
-// work-type word.
-Candidate deriveWork(const QString& composer, const QString& album, const QString& songTitle = QString(), const QString& genre = QString());
+// Derives a work candidate from a song's composer/artist/albumartist/album
+// tags. When "composer" is empty, "albumArtist" (falling back to "artist")
+// is used instead, but only when the song looks classical - see the .cpp for
+// the exact heuristic. "songTitle" and "genre" are also consulted as a
+// fallback source for genreKeyword when the album title itself contains no
+// recognisable work-type word, and "songTitle" additionally picks the right
+// work out of a multi-work album (e.g. a "Kaffee-Kantate BWV 211 -
+// Bauern-Kantate BWV 212" collection).
+Candidate deriveWork(const QString& composer, const QString& artist, const QString& albumArtist, const QString& album, const QString& songTitle = QString(), const QString& genre = QString());
 
 // The composer's surname: the last whitespace-separated word, with basic
 // handling for a trailing lowercase particle (van, von, de, ...) so that
 // is never returned on its own.
 QString composerSurname(const QString& composer);
 
-// Picks the first result from a MediaWiki "action=query&list=search"
-// response that plausibly matches "work": its title must contain the
-// detected work-type keyword (when one was found) together with either the
-// composer surname or the catalogue number. Returns an empty string when
-// nothing matches or the response cannot be parsed.
+// Picks the best result from a MediaWiki "action=query&list=search" response
+// that plausibly matches "work". A result's title must contain the detected
+// work-type keyword (when one was found) - this alone rejects composer
+// biography pages etc. Among the remaining candidates, a result whose title
+// or (HTML) snippet contains the catalogue number is preferred over one that
+// only matches via the composer surname, since Wikipedia often omits the
+// catalogue number from the title itself (e.g. "Coffee Cantata" for Bach's
+// BWV 211) but still mentions it in the snippet. Returns an empty string
+// when nothing matches or the response cannot be parsed.
 QString selectSearchResult(const QByteArray& searchResponseJson, const Candidate& work);
 
 // Result of parsing a MediaWiki "action=query&prop=pageprops|langlinks"
