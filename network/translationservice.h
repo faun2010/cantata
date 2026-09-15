@@ -102,6 +102,7 @@ private:
 	QString apiKey;
 	QNetworkAccessManager* network;
 	bool enabled = true;
+	bool disableThinking = true;
 	int timeoutMs = 180000;
 	int searchTimeoutMs = 30000;
 	int cooldownSeconds = 30;

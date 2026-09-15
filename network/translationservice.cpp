@@ -131,6 +131,7 @@ void TranslationService::createDefaultConfiguration() const
 	settings.setValue(QLatin1String("maxConcurrentRequests"), 1);
 	settings.setValue(QLatin1String("maxQueuedRequests"), 16);
 	settings.setValue(QLatin1String("apiKey"), QString());
+	settings.setValue(QLatin1String("disableThinking"), true);
 	settings.endGroup();
 	settings.sync();
 #ifdef Q_OS_UNIX
@@ -163,6 +164,7 @@ void TranslationService::reloadConfiguration()
 	maxConcurrentRequests = qBound(1, settings.value(QLatin1String("maxConcurrentRequests"), 1).toInt(), 8);
 	maxQueuedRequests = qBound(0, settings.value(QLatin1String("maxQueuedRequests"), 16).toInt(), 1024);
 	apiKey = settings.value(QLatin1String("apiKey")).toString().trimmed();
+	disableThinking = settings.value(QLatin1String("disableThinking"), true).toBool();
 	settings.endGroup();
 
 	if (provider.isEmpty()) provider = QLatin1String(defaultProvider);
@@ -367,7 +369,7 @@ void TranslationService::startRequest(Request pending)
 	if (provider == QLatin1String("ollama")) {
 		payload.insert(QLatin1String("system"), systemPrompt);
 		payload.insert(QLatin1String("prompt"), userPrompt);
-		payload.insert(QLatin1String("think"), false);
+		payload.insert(QLatin1String("think"), !disableThinking);
 		QJsonObject options;
 		options.insert(QLatin1String("temperature"), 0.1);
 		payload.insert(QLatin1String("options"), options);
@@ -384,6 +386,16 @@ void TranslationService::startRequest(Request pending)
 		messages.append(userMessage);
 		payload.insert(QLatin1String("messages"), messages);
 		payload.insert(QLatin1String("temperature"), 0.1);
+		if (disableThinking) {
+			// Reasoning models otherwise spend thousands of tokens thinking
+			// before a short metadata translation (30s vs 1s measured).
+			// vLLM/SGLang-style servers read these chat template switches;
+			// set disableThinking=false for servers that reject unknown fields.
+			QJsonObject templateArguments;
+			templateArguments.insert(QLatin1String("enable_thinking"), false);
+			templateArguments.insert(QLatin1String("thinking"), false);
+			payload.insert(QLatin1String("chat_template_kwargs"), templateArguments);
+		}
 	}
 
 	QNetworkRequest request{QUrl(endpoint())};
