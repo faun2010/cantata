@@ -43,6 +43,9 @@ struct Recording {
 	QString edition;
 	QString rating;
 	QString source;
+	// Optional short guide review excerpt (English), dataset-only. May be
+	// empty even for a dataset entry.
+	QString comment;
 	bool isAi = false;
 };
 
@@ -109,6 +112,22 @@ int findMatchingWork(const Dataset& dataset, const QString& composer, const QStr
 // returns an empty list when no JSON array can be recovered. Entries with
 // every field empty are dropped.
 QList<Recording> parseAiRecordings(const QString& response);
+
+// A stable key identifying a recording for cover art lookup/caching (see
+// context/recordingcovers.h), built from its label, catalogue number and
+// performers - the fields least likely to vary between mentions of the same
+// physical release. Case/diacritics-insensitive and whitespace-normalised,
+// so cosmetic differences do not change the key.
+QString recordingCoverKey(const QString& performers, const QString& label, const QString& catalogue);
+
+// " \xc2\xb7 " (U+00B7 MIDDLE DOT) and " \xe2\x80\x94 " (U+2014 EM DASH)
+// padded with a single space either side - built from QChar code points
+// rather than a QLatin1String literal containing raw UTF-8 bytes, which
+// mangles multi-byte characters (each byte is read as one Latin-1
+// character). Exposed here, rather than kept private to AlbumView, so their
+// exact characters can be asserted on in a unit test.
+QString middleDotSeparator();
+QString emDashSeparator();
 
 }// namespace RecommendedRecordings
 

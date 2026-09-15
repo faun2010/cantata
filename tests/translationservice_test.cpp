@@ -575,6 +575,37 @@ private Q_SLOTS:
 		QVERIFY(!systemPrompt.contains(QLatin1String("translation engine")));
 	}
 
+	void workDossierContextUsesDedicatedSystemPromptWithTargetLanguage()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		int requestCount = 0;
+		QByteArray capturedBody;
+		QJsonObject response;
+		response.insert(QLatin1String("response"), QStringLiteral("{\"introduction\":{\"overview\":\"...\"},\"recordings\":[]}"));
+		serve(server, requestCount, QJsonDocument(response).toJson(QJsonDocument::Compact), 200, 0, &capturedBody);
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		writeConfig(config, serverUrl(server));
+
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		service.translate(QLatin1String("Work: Ludwig van Beethoven — Piano Concerto No.2, Op.19"), QLatin1String("work-dossier-v1"));
+		QTRY_COMPARE(ready.count(), 1);
+		QCOMPARE(requestCount, 1);
+
+		const QJsonObject payload = QJsonDocument::fromJson(capturedBody).object();
+		const QString systemPrompt = payload.value(QLatin1String("system")).toString();
+		// The dedicated work-dossier-v1 prompt, not the generic translation
+		// one, and it names the configured target language (see
+		// writeConfig()'s "Simplified Chinese").
+		QVERIFY(systemPrompt.contains(QLatin1String("Simplified Chinese")));
+		QVERIFY(systemPrompt.contains(QLatin1String("introduction")));
+		QVERIFY(systemPrompt.contains(QLatin1String("recordings")));
+		QVERIFY(systemPrompt.contains(QLatin1String("Do not invent")));
+		QVERIFY(!systemPrompt.contains(QLatin1String("translation engine")));
+	}
+
 	void zzDisabledNetworkStillReadsCache()
 	{
 		QTemporaryDir temporary;

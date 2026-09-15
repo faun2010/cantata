@@ -102,3 +102,21 @@ target_link_libraries(recommendedrecordings_test PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
 )
 add_test(NAME recommendedrecordings_test COMMAND recommendedrecordings_test)
+
+add_executable(workdossier_test workdossier_test.cpp ../context/workdossier.cpp ../context/recommendedrecordings.cpp ../context/workinfo.cpp)
+target_include_directories(workdossier_test PRIVATE ..)
+target_link_libraries(workdossier_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Test
+)
+add_test(NAME workdossier_test COMMAND workdossier_test)
+
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Network)
+add_executable(recordingcovers_test recordingcovers_test.cpp ../context/recordingcovers.cpp)
+target_include_directories(recordingcovers_test PRIVATE ..)
+target_link_libraries(recordingcovers_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Test
+)
+add_test(NAME recordingcovers_test COMMAND recordingcovers_test)

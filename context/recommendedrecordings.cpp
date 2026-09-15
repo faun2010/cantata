@@ -183,6 +183,7 @@ Dataset parseDataset(const QByteArray& json)
 			recording.catalogue = recordingFieldString(recObj, "catalogue");
 			recording.year = recordingFieldString(recObj, "year");
 			recording.source = recordingFieldString(recObj, "source");
+			recording.comment = recordingFieldString(recObj, "comment");
 			recording.isAi = false;
 			work.recordings << recording;
 		}
@@ -238,6 +239,30 @@ QList<Recording> parseAiRecordings(const QString& response)
 		}
 	}
 	return result;
+}
+
+QString recordingCoverKey(const QString& performers, const QString& label, const QString& catalogue)
+{
+	const QString normalised = normaliseName(label) + QLatin1Char('|') + normaliseCatalogue(catalogue) + QLatin1Char('|') + normaliseName(performers);
+	return normalised;
+}
+
+QString middleDotSeparator()
+{
+	QString separator;
+	separator += QLatin1Char(' ');
+	separator += QChar(0x00B7);
+	separator += QLatin1Char(' ');
+	return separator;
+}
+
+QString emDashSeparator()
+{
+	QString separator;
+	separator += QLatin1Char(' ');
+	separator += QChar(0x2014);
+	separator += QLatin1Char(' ');
+	return separator;
 }
 
 }// namespace RecommendedRecordings

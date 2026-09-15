@@ -27,6 +27,7 @@ Dataset emperorDataset()
 	recording.insert(QLatin1String("catalogue"), QLatin1String("SLX 2002"));
 	recording.insert(QLatin1String("year"), QString());
 	recording.insert(QLatin1String("source"), QLatin1String("https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"));
+	recording.insert(QLatin1String("comment"), QLatin1String("A performance of aristocratic poise, closely balanced and cleanly transferred."));
 
 	QJsonObject work;
 	work.insert(QLatin1String("composer"), QLatin1String("Ludwig van Beethoven"));
@@ -67,7 +68,26 @@ private Q_SLOTS:
 		QCOMPARE(recording.catalogue, QString("SLX 2002"));
 		QCOMPARE(recording.guide, QString("TAS Super LP List"));
 		QCOMPARE(recording.rating, QString("Super LP"));
+		QCOMPARE(recording.comment, QString("A performance of aristocratic poise, closely balanced and cleanly transferred."));
 		QVERIFY(!recording.isAi);
+	}
+
+	void parsesDatasetWithoutAComment()
+	{
+		// "comment" is optional - a dataset entry that omits it entirely must
+		// still parse cleanly, with an empty comment rather than a failure.
+		QJsonObject recording;
+		recording.insert(QLatin1String("soloist"), QLatin1String("Someone"));
+		QJsonObject work;
+		work.insert(QLatin1String("composer"), QLatin1String("Johannes Brahms"));
+		work.insert(QLatin1String("title"), QLatin1String("Symphony No. 1"));
+		work.insert(QLatin1String("catalogue"), QLatin1String("Op. 68"));
+		work.insert(QLatin1String("recordings"), QJsonArray{recording});
+		QJsonObject root;
+		root.insert(QLatin1String("works"), QJsonArray{work});
+		const Dataset dataset = parseDataset(QJsonDocument(root).toJson());
+		QCOMPARE(dataset.works.size(), 1);
+		QVERIFY(dataset.works.first().recordings.first().comment.isEmpty());
 	}
 
 	void parseDatasetHandlesInvalidJson()
@@ -192,6 +212,36 @@ private Q_SLOTS:
 	{
 		QVERIFY(!performerNameMatches(QString(), QStringLiteral("Rudolf Serkin")));
 		QVERIFY(!performerNameMatches(QStringLiteral("Serkin"), QString()));
+	}
+
+	void recordingCoverKeyIsStableAcrossCosmeticDifferences()
+	{
+		const QString a = recordingCoverKey(QStringLiteral("Artur Rubinstein, Daniel Barenboim"), QStringLiteral("RCA"), QStringLiteral("ARL1-4711"));
+		const QString b = recordingCoverKey(QStringLiteral("Artur Rubinstein, Daniel Barenboim"), QStringLiteral("rca"), QStringLiteral("ARL1 4711"));
+		QCOMPARE(a, b);
+		QVERIFY(!a.isEmpty());
+	}
+
+	void recordingCoverKeyDiffersForDifferentRecordings()
+	{
+		const QString a = recordingCoverKey(QStringLiteral("Artur Rubinstein"), QStringLiteral("RCA"), QStringLiteral("ARL1-4711"));
+		const QString b = recordingCoverKey(QStringLiteral("Glenn Gould"), QStringLiteral("Columbia"), QStringLiteral("6011"));
+		QVERIFY(a != b);
+	}
+
+	void separatorsAreTheRealCharactersNotMojibake()
+	{
+		// Regression test for QLatin1String(" · ")/QLatin1String(" — ")
+		// literals containing raw UTF-8 bytes, which QLatin1String reads one
+		// byte per QChar and so mangles into 2-3 wrong Latin-1 characters
+		// each - see context/albumview.cpp's use of these separators.
+		const QString middleDot = middleDotSeparator();
+		QCOMPARE(middleDot.size(), 3);
+		QCOMPARE(middleDot.at(1), QChar(0x00B7));
+
+		const QString emDash = emDashSeparator();
+		QCOMPARE(emDash.size(), 3);
+		QCOMPARE(emDash.at(1), QChar(0x2014));
 	}
 };
 

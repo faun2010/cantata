@@ -26,6 +26,7 @@
 
 #include "recommendedrecordings.h"
 #include "view.h"
+#include "workdossier.h"
 #include "workinfo.h"
 #include <QList>
 
@@ -33,6 +34,7 @@ class QImage;
 class NetworkJob;
 class QByteArray;
 class QUrl;
+class QJsonObject;
 class ContextEngine;
 class Action;
 class QAction;
@@ -72,6 +74,9 @@ private Q_SLOTS:
 	void workSummaryFinished();
 	void showOriginalToggled();
 	void recommendedRecordingsTranslationReady(const QString& source, const QString& context, const QString& translation);
+	void workDossierTranslationReady(const QString& source, const QString& context, const QString& translation);
+	void workExtractsFinished();
+	void recordingCoverReady(const QString& key, const QString& localPath);
 
 private:
 	void clearDetails();
@@ -79,6 +84,8 @@ private:
 	void getDetails();
 	void updateDetails(bool preservePos = false);
 	QString buildWorkIntroductionSection(bool showOriginal) const;
+	QString renderStructuredIntroduction(const WorkDossier::Introduction& intro) const;
+	bool workDossierPending() const;
 	void abort() override;
 
 	// Priority-1/2 "work introduction" lookup - see context/workinfo.h for
@@ -89,6 +96,14 @@ private:
 	void startWorkSearch();
 	void applyWorkSummary(const WorkInfo::Summary& summary, bool isZh);
 	void abortWorkLookup();
+	void mergeWorkCacheFile(const QJsonObject& updates) const;
+
+	// "work-dossier-v1" single structured LLM call - see context/workdossier.h
+	// for the pure dossier-assembly/response-parsing logic. Supersedes the
+	// plain translated introduction and (when the dataset has no entry for
+	// the work) the recommended-recordings-v1 AI fallback, once it returns.
+	void maybeStartWorkDossier();
+	void startWorkDossier();
 
 	// "Recommended Recordings" (see context/recommendedrecordings.h/.cpp for
 	// the pure dataset/AI-response/library matching logic).
@@ -131,8 +146,19 @@ private:
 	QString recAiContext;
 
 	NetworkJob* workJob;
+	NetworkJob* workExtractsJob;
 	QString workSelectedTitle;
 	bool workSummaryIsZh;
+
+	// "work-dossier-v1" source dossier (see context/workdossier.h) and its
+	// state - see startWorkDossier()/maybeStartWorkDossier().
+	QString workEnglishFullText;// Filtered/capped English Wikipedia article text.
+	QString workZhHintText;// zh Wikipedia summary, extra hint only.
+	QString workDossierSource;
+	QString workDossierContext;
+	bool workDossierStarted;
+	bool workDossierResponded;// A response (parseable or not) has been received.
+	WorkDossier::Result workDossierResult;
 };
 
 #endif

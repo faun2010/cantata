@@ -21,7 +21,17 @@
           "label": "RCA",
           "catalogue": "ARL1-4711",
           "year": "",
-          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "MusicWeb International (Jonathan Woolf): \"the warmly moulded slow movement has affectionate charm and depends on some internally contrastive material rather more starkly than had been the case in those earlier cycles\"",
+          "reviews": [
+            {
+              "publication": "MusicWeb International",
+              "reviewer": "Jonathan Woolf",
+              "date": "April 2005",
+              "url": "http://www.musicweb-international.com/classrev/2005/Apr05/beethoven_rubinstein_BMG82876658382.htm",
+              "excerpt": "the warmly moulded slow movement has affectionate charm and depends on some internally contrastive material rather more starkly than had been the case in those earlier cycles"
+            }
+          ]
         }
       ]
     },
@@ -44,7 +54,17 @@
           "label": "Columbia/Impex",
           "catalogue": "6011",
           "year": "",
-          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "Impex Records (product page) (Impex Records (publisher/label text)): \"Gould is often erratic, but never boring, and his Beethoven Fourth brings a fresh light to this favorite composition\"",
+          "reviews": [
+            {
+              "publication": "Impex Records (product page)",
+              "reviewer": "Impex Records (publisher/label text)",
+              "date": "n.d.",
+              "url": "https://impexrecords.com/beethoven-piano-concerto-no-4-180-gram-lp/",
+              "excerpt": "Gould is often erratic, but never boring, and his Beethoven Fourth brings a fresh light to this favorite composition"
+            }
+          ]
         }
       ]
     },
@@ -68,7 +88,17 @@
           "label": "Decca",
           "catalogue": "SLX 2002",
           "year": "",
-          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "MusicWeb International (Christopher Howell): \"Knappertsbusch directs the outer movements with a proud splendour that never becomes heavy\"",
+          "reviews": [
+            {
+              "publication": "MusicWeb International",
+              "reviewer": "Christopher Howell",
+              "date": "December 2000",
+              "url": "http://www.musicweb-international.com/classrev/2000/dec00/Beethoven_Curzon.htm",
+              "excerpt": "Knappertsbusch directs the outer movements with a proud splendour that never becomes heavy"
+            }
+          ]
         },
         {
           "guide": "Penguin Guide",
@@ -81,7 +111,8 @@
           "catalogue": "CD-EMX 2184",
           "year": "",
           "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
-          "note": "coupled with Grosse Fuge, Op. 133 (arr.)"
+          "note": "coupled with Grosse Fuge, Op. 133 (arr.)",
+          "comment": "unsurpassed as an interpreter of this most magnificant of concertos; first choice"
         },
         {
           "guide": "Penguin Guide",
@@ -94,7 +125,17 @@
           "catalogue": "CDC7 49965-2",
           "year": "",
           "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
-          "note": "coupled with Choral Fantasia, Op. 80; period instruments"
+          "note": "coupled with Choral Fantasia, Op. 80; period instruments",
+          "comment": "original insruments contrast Bishop-Kovacevich but every bit as stimulating | MusicWeb International (Dominy Clements): \"Tan's agility and effortless technical accuracy is constantly in evidence, and one can easily imagine the breathtaking response these pieces would have drawn from contemporary crowds\"",
+          "reviews": [
+            {
+              "publication": "MusicWeb International",
+              "reviewer": "Dominy Clements",
+              "date": "June 2008",
+              "url": "http://www.musicweb-international.com/classrev/2008/june08/Beethoven_Tan_5220142.htm",
+              "excerpt": "Tan's agility and effortless technical accuracy is constantly in evidence, and one can easily imagine the breathtaking response these pieces would have drawn from contemporary crowds"
+            }
+          ]
         },
         {
           "guide": "Penguin Guide",
@@ -107,7 +148,17 @@
           "catalogue": "422 482-2",
           "year": "",
           "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
-          "note": "coupled with Piano Sonata No. 30, Op. 109"
+          "note": "coupled with Piano Sonata No. 30, Op. 109",
+          "comment": "one of the most deeply satisfying versions | Classical Source (Colin Anderson): \"The LSO 'Emperor' is suitably regal and at its heart is a spacious and magical slow movement, which unfortunately discolours a little due to over-zealous re-mastering\"",
+          "reviews": [
+            {
+              "publication": "Classical Source",
+              "reviewer": "Colin Anderson",
+              "date": "December 2015",
+              "url": "https://www.classicalsource.com/cd/stephen-kovacevich-the-complete-philips-recordings-bartok-beethoven-brahms-mozart-decca/",
+              "excerpt": "The LSO 'Emperor' is suitably regal and at its heart is a spacious and magical slow movement, which unfortunately discolours a little due to over-zealous re-mastering"
+            }
+          ]
         }
       ]
     },
@@ -131,7 +182,8 @@
           "label": "RCA",
           "catalogue": "09026 61401-2",
           "year": "",
-          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html"
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "vintage stereo at its most impressive; evocative approach"
         },
         {
           "guide": "Penguin Guide",
@@ -144,7 +196,8 @@
           "label": "Virgin Classics",
           "catalogue": "VC7 59611-2",
           "year": "",
-          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html"
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "remarkable effects of color and pedalling; oustanding"
         }
       ]
     },
@@ -166,7 +219,17 @@
           "label": "RCA/Analogue Productions",
           "catalogue": "LSC-1806",
           "year": "",
-          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "Audiophilia (Anthony Kershaw): \"The mid '50s Chicago Symphony had few equals, and Reiner's iron fist controls them to perfection\"",
+          "reviews": [
+            {
+              "publication": "Audiophilia",
+              "reviewer": "Anthony Kershaw",
+              "date": "2026-03-14",
+              "url": "https://www.audiophilia.com/reviews/2026/3/10/richard-strauss-also-sprach-zarathustrafritz-reiner-conducting-the-chicago-symphony-orchestraanalogue-productions-rca-living-stereo-45-rpm-series-2026",
+              "excerpt": "The mid '50s Chicago Symphony had few equals, and Reiner's iron fist controls them to perfection"
+            }
+          ]
         },
         {
           "guide": "TAS Super LP List",
@@ -179,7 +242,8 @@
           "catalogue": "ORG-159-45",
           "year": "",
           "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
-          "note": "45rpm, 2LP reissue"
+          "note": "45rpm, 2LP reissue",
+          "comment": ""
         },
         {
           "guide": "Penguin Guide",
@@ -192,7 +256,8 @@
           "catalogue": "09026 61494-2",
           "year": "",
           "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
-          "note": "coupled with Ein Heldenleben on same disc"
+          "note": "coupled with Ein Heldenleben on same disc",
+          "comment": "ASZ ranks alonside the very best ever committed to disc"
         }
       ]
     },
@@ -215,7 +280,8 @@
           "catalogue": "09026 61494-2",
           "year": "",
           "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
-          "note": "coupled with Also sprach Zarathustra on same disc"
+          "note": "coupled with Also sprach Zarathustra on same disc",
+          "comment": "ASZ ranks alonside the very best ever committed to disc"
         }
       ]
     },
@@ -237,7 +303,17 @@
           "label": "RCA/Analogue Productions",
           "catalogue": "AAPC 2077",
           "year": "",
-          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/"
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "Acoustic Sounds / Analogue Productions (product page, quoting High Fidelity magazine) (High Fidelity (vintage magazine, quoted by the label)): \"as fine an example as we have of Reiner's preeminent place among the living disciples of Richard Strauss\"",
+          "reviews": [
+            {
+              "publication": "Acoustic Sounds / Analogue Productions (product page, quoting High Fidelity magazine)",
+              "reviewer": "High Fidelity (vintage magazine, quoted by the label)",
+              "date": "n.d. (original review 1959; page text current)",
+              "url": "https://store.acousticsounds.com/d/110615/Fritz_Reiner-Strauss_Till_EulenspiegelDeath_And_Transfiguration-200_Gram_Vinyl_Record",
+              "excerpt": "as fine an example as we have of Reiner's preeminent place among the living disciples of Richard Strauss"
+            }
+          ]
         }
       ]
     },
@@ -260,7 +336,8 @@
           "catalogue": "410 892-2",
           "year": "",
           "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
-          "note": "coupled with Metamorphosen for 23 solo strings"
+          "note": "coupled with Metamorphosen for 23 solo strings",
+          "comment": "electrifying"
         },
         {
           "guide": "Penguin Guide",
@@ -273,7 +350,8 @@
           "catalogue": "SBK 53511",
           "year": "",
           "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
-          "note": "reissue disc also couples Sinfonia Domestica and Salome's Dance of the 7 Veils (Ormandy/Philadelphia Orchestra)"
+          "note": "reissue disc also couples Sinfonia Domestica and Salome's Dance of the 7 Veils (Ormandy/Philadelphia Orchestra)",
+          "comment": "tremendous electricity and orchestral bravura; D&T still unsurpassed"
         }
       ]
     }

@@ -30,6 +30,7 @@
 #include "mpd-interface/cuefile.h"
 #include "network/networkaccessmanager.h"
 #include "network/translationservice.h"
+#include "recordingcovers.h"
 #include "support/action.h"
 #include "support/actioncollection.h"
 #include "support/configuration.h"
@@ -148,19 +149,43 @@ struct RecommendedRecordingLibraryMatch {
 	bool nowPlaying = false;
 };
 
-static QString renderRecommendedRecordingLine(const RecommendedRecordings::Recording& r, const RecommendedRecordingLibraryMatch* libraryMatch)
+// Renders the cover thumbnail slot for a recording - see
+// RecordingCovers::cachedCover(). Empty when no cover is cached (yet).
+static QString renderCoverThumbnail(const QString& localCoverPath)
 {
-	QStringList names;
+	if (localCoverPath.isEmpty()) {
+		return QString();
+	}
+	return QLatin1String("<img src=\"") + QUrl::fromLocalFile(localCoverPath).toString().toHtmlEscaped() + QLatin1String("\" width=\"96\"/><br/>");
+}
+
+// One full "Recommended Recordings" block: cover thumbnail, bold performers
+// line, "label catalogue (year)", guide/rating with its source link
+// (dataset entries only - never for an AI/extra suggestion), the
+// work-dossier-v1 "why" text when one was supplied, and the library link.
+static QString renderRecordingBlock(const RecommendedRecordings::Recording& r, const QString& why, const RecommendedRecordingLibraryMatch* libraryMatch)
+{
+	QStringList rawNames;
+	QStringList escapedNames;
 	if (!r.soloist.isEmpty()) {
-		names << r.soloist.toHtmlEscaped();
+		rawNames << r.soloist;
+		escapedNames << r.soloist.toHtmlEscaped();
 	}
 	if (!r.conductor.isEmpty()) {
-		names << r.conductor.toHtmlEscaped();
+		rawNames << r.conductor;
+		escapedNames << r.conductor.toHtmlEscaped();
 	}
 	if (!r.ensemble.isEmpty()) {
-		names << r.ensemble.toHtmlEscaped();
+		rawNames << r.ensemble;
+		escapedNames << r.ensemble.toHtmlEscaped();
 	}
-	QString line = names.join(QLatin1String(" · "));
+
+	QString html;
+	const QString coverKey = RecommendedRecordings::recordingCoverKey(rawNames.join(QLatin1String(", ")), r.label, r.catalogue);
+	html += renderCoverThumbnail(RecordingCovers::self()->cachedCover(coverKey));
+	if (!escapedNames.isEmpty()) {
+		html += QLatin1String("<b>") + escapedNames.join(RecommendedRecordings::middleDotSeparator()) + QLatin1String("</b><br/>");
+	}
 
 	QStringList labelParts;
 	if (!r.label.isEmpty()) {
@@ -169,15 +194,16 @@ static QString renderRecommendedRecordingLine(const RecommendedRecordings::Recor
 	if (!r.catalogue.isEmpty()) {
 		labelParts << r.catalogue.toHtmlEscaped();
 	}
-	if (!labelParts.isEmpty()) {
-		line += (line.isEmpty() ? QString() : QLatin1String(" — ")) + labelParts.join(QLatin1Char(' '));
-	}
+	QString labelLine = labelParts.join(QLatin1Char(' '));
 	if (!r.year.isEmpty()) {
-		line += QLatin1String(" (") + r.year.toHtmlEscaped() + QLatin1Char(')');
+		labelLine += (labelLine.isEmpty() ? QString() : QLatin1String(" ")) + QLatin1Char('(') + r.year.toHtmlEscaped() + QLatin1Char(')');
+	}
+	if (!labelLine.isEmpty()) {
+		html += labelLine + QLatin1String("<br/>");
 	}
 
-	// Never show a guide/rating for an AI suggestion - only ever populated
-	// for a dataset entry to begin with, but enforced here too.
+	// Never show a guide/rating for an AI/extra suggestion - only ever
+	// populated for a dataset entry to begin with, but enforced here too.
 	if (!r.isAi && !r.guide.isEmpty()) {
 		QString guideText = r.guide.toHtmlEscaped();
 		if (!r.edition.isEmpty()) {
@@ -187,11 +213,15 @@ static QString renderRecommendedRecordingLine(const RecommendedRecordings::Recor
 			guideText += QLatin1String(": ") + r.rating.toHtmlEscaped();
 		}
 		if (!r.source.isEmpty()) {
-			line += QLatin1String(" (<a href=\"") + r.source.toHtmlEscaped() + QLatin1String("\">") + guideText + QLatin1String("</a>)");
+			html += QLatin1String("<a href=\"") + r.source.toHtmlEscaped() + QLatin1String("\">") + guideText + QLatin1String("</a><br/>");
 		}
 		else {
-			line += QLatin1String(" (") + guideText + QLatin1String(")");
+			html += guideText + QLatin1String("<br/>");
 		}
+	}
+
+	if (!why.isEmpty()) {
+		html += TranslationService::plainTextToHtml(why) + QLatin1String("<br/>");
 	}
 
 	if (libraryMatch) {
@@ -199,13 +229,13 @@ static QString renderRecommendedRecordingLine(const RecommendedRecordings::Recor
 		if (libraryMatch->nowPlaying) {
 			linkText += QLatin1String(" (") + AlbumView::tr("now playing") + QLatin1Char(')');
 		}
-		line += QLatin1String(" — <a href=\"") + recommendedRecordingAlbumUrl(libraryMatch->album.artist, libraryMatch->album.id).toHtmlEscaped() + QLatin1String("\">") + linkText.toHtmlEscaped() + QLatin1String("</a>");
+		html += QLatin1String("<a href=\"") + recommendedRecordingAlbumUrl(libraryMatch->album.artist, libraryMatch->album.id).toHtmlEscaped() + QLatin1String("\">") + linkText.toHtmlEscaped() + QLatin1String("</a>");
 	}
-	return line;
+	return QLatin1String("<p>") + html + QLatin1String("</p>");
 }
 
 AlbumView::AlbumView(QWidget* p)
-	: View(p), detailsReceived(0), workJob(nullptr), workSummaryIsZh(false)
+	: View(p), detailsReceived(0), workJob(nullptr), workExtractsJob(nullptr), workSummaryIsZh(false), workDossierStarted(false), workDossierResponded(false)
 {
 	engine = ContextEngine::create(this);
 #ifndef Q_OS_WIN
@@ -224,6 +254,8 @@ AlbumView::AlbumView(QWidget* p)
 	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::detailsTranslationReady);
 	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::workIntroTranslationReady);
 	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::recommendedRecordingsTranslationReady);
+	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::workDossierTranslationReady);
+	connect(RecordingCovers::self(), &RecordingCovers::coverReady, this, &AlbumView::recordingCoverReady);
 	connect(Covers::self(), SIGNAL(cover(Song, QImage, QString)), SLOT(coverRetrieved(Song, QImage, QString)));
 	connect(Covers::self(), SIGNAL(coverUpdated(Song, QImage, QString)), SLOT(coverUpdated(Song, QImage, QString)));
 	connect(text, SIGNAL(anchorClicked(QUrl)), SLOT(playSong(QUrl)));
@@ -521,25 +553,93 @@ void AlbumView::showOriginalToggled()
 	updateDetails(false);
 }
 
+// One bold small heading + its plain-text (translated to HTML) body, e.g.
+// "<b>Background</b><br/>...", omitted entirely by the caller when the body
+// is empty.
+static QString wrapIntroductionSubPart(const QString& heading, const QString& plainTextBody)
+{
+	return QLatin1String("<p><b>") + heading.toHtmlEscaped() + QLatin1String("</b><br/>") + TranslationService::plainTextToHtml(plainTextBody) + QLatin1String("</p>");
+}
+
+QString AlbumView::renderStructuredIntroduction(const WorkDossier::Introduction& intro) const
+{
+	if (intro.isEmpty()) {
+		return QString();
+	}
+	QString html;
+	if (!intro.overview.isEmpty()) {
+		html += QLatin1String("<p>") + TranslationService::plainTextToHtml(intro.overview) + QLatin1String("</p>");
+	}
+	if (!intro.background.isEmpty()) {
+		html += wrapIntroductionSubPart(tr("Background"), intro.background);
+	}
+	if (!intro.structure.isEmpty()) {
+		QStringList lines;
+		for (const WorkDossier::MovementInfo& movement : intro.structure) {
+			QString line;
+			if (!movement.movement.isEmpty()) {
+				line += QLatin1String("<b>") + TranslationService::plainTextToHtml(movement.movement) + QLatin1String("</b>");
+			}
+			if (!movement.description.isEmpty()) {
+				line += (line.isEmpty() ? QString() : QLatin1String(": ")) + TranslationService::plainTextToHtml(movement.description);
+			}
+			if (!line.isEmpty()) {
+				lines << line;
+			}
+		}
+		if (!lines.isEmpty()) {
+			html += QLatin1String("<p><b>") + tr("Movements").toHtmlEscaped() + QLatin1String("</b><br/>") + lines.join(QLatin1String("<br/>")) + QLatin1String("</p>");
+		}
+	}
+	if (!intro.highlights.isEmpty()) {
+		html += wrapIntroductionSubPart(tr("Highlights"), intro.highlights);
+	}
+	if (!intro.premiere.isEmpty()) {
+		html += wrapIntroductionSubPart(tr("Premiere"), intro.premiere);
+	}
+	return html;
+}
+
+bool AlbumView::workDossierPending() const
+{
+	return currentWork.valid && workDossierStarted && !workDossierResponded;
+}
+
 QString AlbumView::buildWorkIntroductionSection(bool showOriginal) const
 {
 	if (!currentWork.valid) {
 		return QString();
 	}
 	QString body;
-	if (!originalDetails.isEmpty()) {
-		// Priority 1: the album description is the work introduction - see
-		// updateWorkIntroductionSource().
-		body = showOriginal ? originalDetails : (details.isEmpty() ? originalDetails : details);
+	bool structured = false;
+	if (!showOriginal && workDossierResult.valid) {
+		// Priority 0: the work-dossier-v1 structured answer, once it has
+		// arrived - see startWorkDossier()/workDossierTranslationReady().
+		// "Show original" always falls back to the plain source text below.
+		body = renderStructuredIntroduction(workDossierResult.introduction);
+		if (!body.isEmpty()) {
+			body = appendLink(body, workIntroLink);
+			structured = true;
+		}
 	}
-	else if (!workIntroOriginalHtml.isEmpty()) {
-		// Priority 2: the work's own Wikipedia article.
-		body = showOriginal ? workIntroOriginalHtml : (workIntroHtml.isEmpty() ? workIntroOriginalHtml : workIntroHtml);
+	if (!structured) {
+		if (!originalDetails.isEmpty()) {
+			// Priority 1: the album description is the work introduction - see
+			// updateWorkIntroductionSource().
+			body = showOriginal ? originalDetails : (details.isEmpty() ? originalDetails : details);
+		}
+		else if (!workIntroOriginalHtml.isEmpty()) {
+			// Priority 2: the work's own Wikipedia article.
+			body = showOriginal ? workIntroOriginalHtml : (workIntroHtml.isEmpty() ? workIntroOriginalHtml : workIntroHtml);
+		}
 	}
 
 	QString html;
 	if (!body.isEmpty()) {
 		html = View::subHeader(tr("Work Introduction")) + body;
+		if (workDossierPending()) {
+			html += QLatin1String("<p><i>") + tr("Generating detailed introduction…").toHtmlEscaped() + QLatin1String("</i></p>");
+		}
 	}
 	// Shown whenever the song is a valid classical work, even when there is
 	// no introduction text at all yet (or ever).
@@ -600,6 +700,13 @@ void AlbumView::clearDetails()
 	workIntroSource.clear();
 	workIntroTranslationContext.clear();
 	workIntroLink.clear();
+	workEnglishFullText.clear();
+	workZhHintText.clear();
+	workDossierSource.clear();
+	workDossierContext.clear();
+	workDossierStarted = false;
+	workDossierResponded = false;
+	workDossierResult = WorkDossier::Result();
 	recommendedRecordings.clear();
 	recRecordings.clear();
 	recAiRecordings.clear();
@@ -623,21 +730,31 @@ void AlbumView::updateWorkIntroductionSource()
 	workIntroSource.clear();
 	workIntroTranslationContext.clear();
 	workIntroLink.clear();
+	workEnglishFullText.clear();
+	workZhHintText.clear();
+	workDossierSource.clear();
+	workDossierContext.clear();
+	workDossierStarted = false;
+	workDossierResponded = false;
+	workDossierResult = WorkDossier::Result();
 	abortWorkLookup();
 
-	if (!currentWork.valid || !originalDetails.isEmpty()) {
-		// Either not a classical work candidate, or priority 1 (the album
-		// description, already fetched and translated in searchResponse())
-		// supplies the introduction - nothing further to fetch.
+	if (!currentWork.valid) {
 		return;
 	}
 
+	// The work's own Wikipedia article is now always looked up, even when
+	// the album description (priority 1, already fetched/translated in
+	// searchResponse()) supplies the quick introduction shown immediately:
+	// its full text and the dataset's recording facts are the source dossier
+	// the work-dossier-v1 prompt is built from - see startWorkDossier().
 	loadWorkFromCacheOrNetwork();
 }
 
 void AlbumView::loadWorkFromCacheOrNetwork()
 {
 	const QString cachedFile = workCacheFileName(false);
+	bool haveCachedDossierSources = false;
 	if (!cachedFile.isEmpty() && QFile::exists(cachedFile)) {
 		QFile f(cachedFile);
 		if (f.open(QIODevice::ReadOnly)) {
@@ -650,12 +767,24 @@ void AlbumView::loadWorkFromCacheOrNetwork()
 				if (!summary.extract.isEmpty()) {
 					applyWorkSummary(summary, obj.value(QLatin1String("lang")).toString() == QLatin1String("zh"));
 					Utils::touchFile(cachedFile);
-					return;
+					// "fullText" is only present once the English Wikipedia
+					// article's full text has actually been fetched (see
+					// workExtractsFinished()) - an older cache entry from
+					// before that was added lacks it, and is refreshed below
+					// instead of silently never gaining a dossier.
+					if (obj.contains(QLatin1String("fullText"))) {
+						workEnglishFullText = obj.value(QLatin1String("fullText")).toString();
+						workZhHintText = obj.value(QLatin1String("zhHint")).toString();
+						haveCachedDossierSources = true;
+						maybeStartWorkDossier();
+					}
 				}
 			}
 		}
 	}
-	startWorkSearch();
+	if (!haveCachedDossierSources) {
+		startWorkSearch();
+	}
 }
 
 void AlbumView::startWorkSearch()
@@ -747,6 +876,44 @@ void AlbumView::workPagePropsFinished()
 	request.setRawHeader("User-Agent", constWorkUserAgent);
 	workJob = NetworkAccessManager::self()->get(request);
 	connect(workJob, SIGNAL(finished()), this, SLOT(workSummaryFinished()));
+
+	// The work-dossier-v1 prompt's main source (see workdossier.h) is always
+	// the full English Wikipedia article text, fetched in parallel with the
+	// (short) summary above regardless of whether a zh article was found.
+	QUrl extractsUrl(QLatin1String("https://en.wikipedia.org/w/api.php"));
+	QUrlQuery extractsQuery;
+	extractsQuery.addQueryItem(QLatin1String("action"), QLatin1String("query"));
+	extractsQuery.addQueryItem(QLatin1String("prop"), QLatin1String("extracts"));
+	extractsQuery.addQueryItem(QLatin1String("explaintext"), QLatin1String("1"));
+	extractsQuery.addQueryItem(QLatin1String("exsectionformat"), QLatin1String("wiki"));
+	extractsQuery.addQueryItem(QLatin1String("redirects"), QLatin1String("1"));
+	extractsQuery.addQueryItem(QLatin1String("titles"), workSelectedTitle);
+	extractsQuery.addQueryItem(QLatin1String("format"), QLatin1String("json"));
+	extractsUrl.setQuery(extractsQuery);
+
+	QNetworkRequest extractsRequest(extractsUrl);
+	extractsRequest.setRawHeader("User-Agent", constWorkUserAgent);
+	workExtractsJob = NetworkAccessManager::self()->get(extractsRequest);
+	connect(workExtractsJob, SIGNAL(finished()), this, SLOT(workExtractsFinished()));
+}
+
+void AlbumView::workExtractsFinished()
+{
+	NetworkJob* reply = qobject_cast<NetworkJob*>(sender());
+	if (!reply || reply != workExtractsJob) {
+		return;
+	}
+	workExtractsJob = nullptr;
+	reply->deleteLater();
+	if (reply->ok()) {
+		const QString fullText = WorkDossier::extractPlainText(reply->readAll());
+		workEnglishFullText = WorkDossier::filterAndCapSections(fullText);
+
+		QJsonObject updates;
+		updates.insert(QLatin1String("fullText"), workEnglishFullText);
+		mergeWorkCacheFile(updates);
+	}
+	maybeStartWorkDossier();
 }
 
 void AlbumView::workSummaryFinished()
@@ -767,17 +934,12 @@ void AlbumView::workSummaryFinished()
 	}
 	applyWorkSummary(summary, workSummaryIsZh);
 
-	const QString cachedFile = workCacheFileName(true);
-	if (!cachedFile.isEmpty()) {
-		QJsonObject obj;
-		obj.insert(QLatin1String("lang"), workSummaryIsZh ? QLatin1String("zh") : QLatin1String("en"));
-		obj.insert(QLatin1String("extract"), summary.extract);
-		obj.insert(QLatin1String("url"), summary.url);
-		QFile f(cachedFile);
-		if (f.open(QIODevice::WriteOnly)) {
-			f.write(QJsonDocument(obj).toJson(QJsonDocument::Compact));
-		}
-	}
+	QJsonObject updates;
+	updates.insert(QLatin1String("lang"), workSummaryIsZh ? QLatin1String("zh") : QLatin1String("en"));
+	updates.insert(QLatin1String("extract"), summary.extract);
+	updates.insert(QLatin1String("url"), summary.url);
+	updates.insert(QLatin1String("zhHint"), workZhHintText);
+	mergeWorkCacheFile(updates);
 }
 
 void AlbumView::applyWorkSummary(const WorkInfo::Summary& summary, bool isZh)
@@ -788,9 +950,12 @@ void AlbumView::applyWorkSummary(const WorkInfo::Summary& summary, bool isZh)
 	workIntroHtml = workIntroOriginalHtml;
 	if (isZh) {
 		// The zh article is already in Chinese - show it directly, no
-		// translation needed.
+		// translation needed. Its summary also doubles as the "extra hint"
+		// handed to the work-dossier-v1 prompt alongside the English full
+		// text - see workdossier.h.
 		workIntroSource.clear();
 		workIntroTranslationContext.clear();
+		workZhHintText = summary.extract;
 	}
 	else {
 		workIntroSource = summary.extract;
@@ -802,6 +967,10 @@ void AlbumView::applyWorkSummary(const WorkInfo::Summary& summary, bool isZh)
 			}
 		}
 	}
+	// Deliberately not calling maybeStartWorkDossier() here: this can run
+	// before the (mandatory) English full-text fetch has even started - see
+	// loadWorkFromCacheOrNetwork() and workExtractsFinished(), which is the
+	// call site that actually gates on it.
 	updateDetails();
 }
 
@@ -811,7 +980,80 @@ void AlbumView::abortWorkLookup()
 		workJob->cancelAndDelete();
 		workJob = nullptr;
 	}
+	if (workExtractsJob) {
+		workExtractsJob->cancelAndDelete();
+		workExtractsJob = nullptr;
+	}
 	workSelectedTitle.clear();
+}
+
+void AlbumView::mergeWorkCacheFile(const QJsonObject& updates) const
+{
+	const QString cachedFile = workCacheFileName(true);
+	if (cachedFile.isEmpty()) {
+		return;
+	}
+	QJsonObject obj;
+	QFile existing(cachedFile);
+	if (existing.open(QIODevice::ReadOnly)) {
+		const QJsonDocument doc = QJsonDocument::fromJson(existing.readAll());
+		if (doc.isObject()) {
+			obj = doc.object();
+		}
+	}
+	for (auto it = updates.constBegin(); it != updates.constEnd(); ++it) {
+		obj.insert(it.key(), it.value());
+	}
+	QFile f(cachedFile);
+	if (f.open(QIODevice::WriteOnly)) {
+		f.write(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+	}
+}
+
+void AlbumView::maybeStartWorkDossier()
+{
+	// The English full-text fetch is mandatory (see workExtractsFinished());
+	// wait for it before assembling the dossier so it is not missing its
+	// main source. workExtractsJob is null both before the fetch is started
+	// and once it has finished, so this is also (harmlessly) a no-op when
+	// called before startWorkSearch()/loadWorkFromCacheOrNetwork() has even
+	// kicked off a lookup.
+	if (!currentWork.valid || workExtractsJob || workDossierStarted) {
+		return;
+	}
+	if (workEnglishFullText.isEmpty() && workZhHintText.isEmpty() && recRecordings.isEmpty()) {
+		// Nothing at all to go on - do not waste a request on a bare work
+		// title with no supporting source text.
+		return;
+	}
+	startWorkDossier();
+}
+
+void AlbumView::startWorkDossier()
+{
+	if (workDossierStarted || !currentWork.valid) {
+		return;
+	}
+	workDossierStarted = true;
+	workDossierResponded = false;
+	workDossierResult = WorkDossier::Result();
+	workDossierSource = WorkDossier::buildDossierText(currentWork.composer, currentWork.title, currentWork.catalogueNumber, workEnglishFullText, workZhHintText, recRecordings);
+	workDossierContext = QLatin1String("work-dossier-v1");
+
+	if (!TranslationService::self()->isEnabled()) {
+		workDossierStarted = false;
+		return;
+	}
+
+	const QString cached = TranslationService::self()->translate(workDossierSource, workDossierContext);
+	if (cached != workDossierSource) {
+		// Already cached - workDossierTranslationReady() will not fire for
+		// this one, so parse and apply it here instead.
+		workDossierResponded = true;
+		workDossierResult = WorkDossier::parseResponse(cached);
+		rebuildRecommendedRecordingsHtml();
+	}
+	updateDetails();
 }
 
 void AlbumView::updateRecommendedRecordings()
@@ -832,7 +1074,11 @@ void AlbumView::updateRecommendedRecordings()
 		recRecordings = dataset.works.at(matchIndex).recordings;
 	}
 	else if (TranslationService::self()->isEnabled()) {
-		recAiSource = currentWork.composer + QLatin1String(" — ") + currentWork.title;
+		// Kept running alongside the work-dossier-v1 call (see
+		// startWorkDossier()) as a fallback: rebuildRecommendedRecordingsHtml()
+		// only ever falls back to this when the dossier's own source-text
+		// extras are unavailable.
+		recAiSource = currentWork.composer + RecommendedRecordings::emDashSeparator() + currentWork.title;
 		if (!currentWork.catalogueNumber.isEmpty()) {
 			recAiSource += QLatin1Char(' ') + currentWork.catalogueNumber;
 		}
@@ -857,6 +1103,37 @@ void AlbumView::recommendedRecordingsTranslationReady(const QString& source, con
 		return;
 	}
 	recAiRecordings = RecommendedRecordings::parseAiRecordings(translation);
+	rebuildRecommendedRecordingsHtml();
+	updateDetails();
+}
+
+void AlbumView::workDossierTranslationReady(const QString& source, const QString& context, const QString& translation)
+{
+	if (workDossierContext.isEmpty() || source != workDossierSource || context != workDossierContext) {
+		return;
+	}
+	workDossierResponded = true;
+	if (translation != source) {
+		// On parse failure workDossierResult stays !valid, and rendering
+		// falls back to today's plain translated introduction/AI-suggestion
+		// recordings - see buildWorkIntroductionSection()/
+		// rebuildRecommendedRecordingsHtml().
+		workDossierResult = WorkDossier::parseResponse(translation);
+	}
+	rebuildRecommendedRecordingsHtml();
+	updateDetails();
+}
+
+void AlbumView::recordingCoverReady(const QString& key, const QString& localPath)
+{
+	Q_UNUSED(localPath)
+	// Cheap to just always rebuild: the section is only a handful of
+	// recordings, and renderRecordingBlock() re-reads
+	// RecordingCovers::cachedCover() itself - no need to track which key
+	// belongs to which currently-shown recording here too.
+	if (key.isEmpty() || !currentWork.valid) {
+		return;
+	}
 	rebuildRecommendedRecordingsHtml();
 	updateDetails();
 }
@@ -904,22 +1181,82 @@ void AlbumView::rebuildRecommendedRecordingsHtml()
 		return nullptr;
 	};
 
-	QStringList lines;
-	for (const RecommendedRecordings::Recording& r : recRecordings) {
-		lines << renderRecommendedRecordingLine(r, findLibraryMatch(r));
-	}
+	// The work-dossier-v1 answer's "why" text for the dataset recording at
+	// "id" (its index into recRecordings, as a string - see
+	// WorkDossier::buildDossierText()), or empty when there is none (not yet
+	// answered, or the source text gave no reason for that recording).
+	auto whyForId = [this](const QString& id) -> QString {
+		for (const WorkDossier::RecordingAnnotation& annotation : workDossierResult.recordings) {
+			if (annotation.id == id) {
+				return annotation.why;
+			}
+		}
+		return QString();
+	};
+
+	// Kicks off/continues a cover art lookup for "r" - a no-op once a cover
+	// is already cached (see RecordingCovers::request()).
+	auto requestCover = [](const RecommendedRecordings::Recording& r) {
+		QStringList names;
+		if (!r.soloist.isEmpty()) names << r.soloist;
+		if (!r.conductor.isEmpty()) names << r.conductor;
+		if (!r.ensemble.isEmpty()) names << r.ensemble;
+		const QString performers = names.join(QLatin1String(", "));
+		const QString key = RecommendedRecordings::recordingCoverKey(performers, r.label, r.catalogue);
+		if (RecordingCovers::self()->cachedCover(key).isEmpty()) {
+			RecordingCovers::self()->request(key, performers, r.label, r.catalogue, r.year);
+		}
+	};
 
 	QString html;
-	if (!lines.isEmpty()) {
-		html += QLatin1String("<p>") + lines.join(QLatin1String("<br/>")) + QLatin1String("</p>");
+	for (int i = 0; i < recRecordings.size(); ++i) {
+		const RecommendedRecordings::Recording& r = recRecordings.at(i);
+		requestCover(r);
+		html += renderRecordingBlock(r, whyForId(QString::number(i)), findLibraryMatch(r));
 	}
 
-	if (!recAiRecordings.isEmpty()) {
-		QStringList aiLines;
-		for (const RecommendedRecordings::Recording& r : recAiRecordings) {
-			aiLines << renderRecommendedRecordingLine(r, findLibraryMatch(r));
+	// "Extra" recordings named only in the source text: the work-dossier-v1
+	// answer's entries with an empty id (only ever populated when the
+	// dataset had no match for this work - see startWorkDossier()) take
+	// priority; the older, dedicated recommended-recordings-v1 AI
+	// suggestions (see updateRecommendedRecordings()) are the fallback for
+	// when the dossier supplied none.
+	QList<RecommendedRecordings::Recording> extras;
+	QStringList extraWhys;
+	if (recRecordings.isEmpty() && workDossierResult.valid) {
+		for (const WorkDossier::RecordingAnnotation& annotation : workDossierResult.recordings) {
+			if (!annotation.id.isEmpty()) {
+				continue;
+			}
+			RecommendedRecordings::Recording r;
+			r.soloist = annotation.performers;
+			r.label = annotation.label;
+			r.catalogue = annotation.catalogue;
+			r.year = annotation.year;
+			r.isAi = true;
+			if (r.soloist.isEmpty() && r.label.isEmpty() && r.catalogue.isEmpty() && r.year.isEmpty()) {
+				continue;
+			}
+			extras << r;
+			extraWhys << annotation.why;
+			if (extras.size() >= 5) {
+				break;
+			}
 		}
-		html += QLatin1String("<p><b>") + tr("AI suggestions (not verified by any guide)").toHtmlEscaped() + QLatin1String("</b><br/>") + aiLines.join(QLatin1String("<br/>")) + QLatin1String("</p>");
+	}
+	if (extras.isEmpty()) {
+		extras = recAiRecordings;
+		extraWhys.clear();
+	}
+
+	if (!extras.isEmpty()) {
+		QString aiHtml;
+		for (int i = 0; i < extras.size(); ++i) {
+			const RecommendedRecordings::Recording& r = extras.at(i);
+			requestCover(r);
+			aiHtml += renderRecordingBlock(r, i < extraWhys.size() ? extraWhys.at(i) : QString(), findLibraryMatch(r));
+		}
+		html += QLatin1String("<p><b>") + tr("AI suggestions (not verified by any guide)").toHtmlEscaped() + QLatin1String("</b></p>") + aiHtml;
 	}
 
 	if (!composerMatches.isEmpty()) {
@@ -929,7 +1266,7 @@ void AlbumView::rebuildRecommendedRecordingsHtml()
 			if (!m.year.isEmpty()) {
 				line += QLatin1String(" (") + m.year.toHtmlEscaped() + QLatin1Char(')');
 			}
-			line += QLatin1String(" — <a href=\"") + recommendedRecordingAlbumUrl(m.album.artist, m.album.id).toHtmlEscaped() + QLatin1String("\">") + tr("Open in Library").toHtmlEscaped() + QLatin1String("</a>");
+			line += RecommendedRecordings::emDashSeparator() + QLatin1String("<a href=\"") + recommendedRecordingAlbumUrl(m.album.artist, m.album.id).toHtmlEscaped() + QLatin1String("\">") + tr("Open in Library").toHtmlEscaped() + QLatin1String("</a>");
 			if (m.nowPlaying) {
 				line += QLatin1String(" (") + tr("now playing").toHtmlEscaped() + QLatin1Char(')');
 			}
