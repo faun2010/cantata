@@ -452,8 +452,13 @@ QVariant SqlLibraryModel::data(const QModelIndex& index, int role) const
 			const QString label = T_Genre == item->getType() ? tr("Genre") : T_Artist == item->getType() ? tr("Artist") : tr("Album");
 			QString details = QStringLiteral("<table><tr><td align=\"right\"><b>%1:&nbsp;&nbsp;</b></td><td>%2</td></tr>").arg(label, item->getText().toHtmlEscaped());
 			if (T_Album == item->getType()) {
-				const AlbumItem* album = static_cast<AlbumItem*>(item);
-				const QString albumArtist = album->getArtistId().isEmpty() ? item->getSubText() : album->getArtistId();
+				// Only the top-level album list is built from AlbumItems; the
+				// albums added when an artist is expanded are plain
+				// CollectionItems (see fetchMore()), so casting them would
+				// read a garbage artist id. Take the artist from the parent
+				// row there instead.
+				const QString albumArtist = T_Album == tl ? static_cast<const AlbumItem*>(item)->getArtistId()
+				                                          : (item->getParent() && T_Artist == item->getParent()->getType() ? item->getParent()->getText() : QString());
 				if (!albumArtist.isEmpty()) details += QStringLiteral("<tr><td align=\"right\"><b>%1:&nbsp;&nbsp;</b></td><td>%2</td></tr>").arg(tr("Album artist"), albumArtist.toHtmlEscaped());
 			}
 			return details + QStringLiteral("</table><br/>") + parentData(item) + item->getSubText().toHtmlEscaped();
