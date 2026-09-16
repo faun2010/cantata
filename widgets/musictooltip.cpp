@@ -20,8 +20,18 @@ void PendingState::clear()
 
 bool showTranslatedTableTooltip(QHelpEvent* e, QAbstractItemView* view, const QModelIndex& index, PendingState& pending)
 {
-	const QString sourceHtml = index.data(Qt::ToolTipRole).toString();
 	pending.clear();
+	// Tooltip help events are delivered from a timer, so the index they were
+	// created with can outlive the row it pointed at - the library model
+	// rebuilds itself whenever MPD reports a change. Asking a stale index for
+	// data dereferences a freed item, so resolve the row under the cursor
+	// again and only use it when it still belongs to this view's model.
+	const QModelIndex current = view ? view->indexAt(view->viewport()->mapFromGlobal(e->globalPos())) : QModelIndex();
+	if (!current.isValid() || !view->model() || current.model() != view->model() || current != index) {
+		return false;
+	}
+
+	const QString sourceHtml = current.data(Qt::ToolTipRole).toString();
 	// Music models provide structured detail tables; action and navigation
 	// help remains in the application's normal language.
 	if (!sourceHtml.startsWith(QLatin1String("<table>")) || !sourceHtml.contains(QLatin1String("<b>"))) {
@@ -34,7 +44,7 @@ bool showTranslatedTableTooltip(QHelpEvent* e, QAbstractItemView* view, const QM
 	pending.html = sourceHtml;
 	pending.context = context;
 	pending.view = view;
-	pending.index = index;
+	pending.index = current;
 
 	TranslationService* service = TranslationService::self();
 	QString translated = service->cached(source, context);
