@@ -1,0 +1,38 @@
+CMakeLists.txt
+  h_64b8fc5201c923 526
+network/translationservice.cpp
+  h_64b8fc5201c923 381-390
+playlists/playlistrules.ui
+  h_64b8fc5201c923 102-122,278,291
+playlists/playlistrulesdialog.cpp
+  h_64b8fc5201c923 207-208,270-272,474-476
+playlists/rulesplaylists.cpp
+  h_64b8fc5201c923 62,174,228-231,372-374
+playlists/rulesplaylists.h
+  h_64b8fc5201c923 73,97
+playlists/smartfilter.cpp
+  h_64b8fc5201c923 1-81
+playlists/smartfilter.h
+  h_64b8fc5201c923 1-62
+playlists/smartplaylistspage.cpp
+  h_64b8fc5201c923 28,30,59,226,248,320,322-323,355-438,471-473
+playlists/smartplaylistspage.h
+  h_64b8fc5201c923 42,52-55,81-85,110,117
+tests/CMakeLists.txt
+  h_64b8fc5201c923 98-105
+tests/smartfilter_test.cpp
+  h_64b8fc5201c923 1-106
+tests/translationservice_test.cpp
+  h_64b8fc5201c923 578-604
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.7.5",
+  "base_commit_sha": "944add3fbafb511ad5b418d2e994a2bb386f4579",
+  "prompts": {},
+  "humans": {
+    "h_64b8fc5201c923": {
+      "author": "faun <faun2010@gmail.com>"
+    }
+  }
+}
