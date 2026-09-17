@@ -238,7 +238,7 @@ static QString encode(const QImage& img)
 	QByteArray bytes;
 	QBuffer buffer(&bytes);
 	buffer.open(QIODevice::WriteOnly);
-	img.save(&buffer, "PNG");
+	Utils::withoutColorProfile(img).save(&buffer, "PNG");
 	return QString("<br/><img src=\"data:image/png;base64,%1\"><br/>").arg(QString(buffer.data().toBase64()));
 }
 

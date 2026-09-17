@@ -187,7 +187,7 @@ static QString save(const QString& mimeType, const QString& extension, const QSt
 			}
 		}
 
-		if (img.save(filePrefix + extension)) {
+		if (Utils::withoutColorProfile(img).save(filePrefix + extension)) {
 			if (!MPDConnection::self()->getDetails().dir.isEmpty() && filePrefix.startsWith(MPDConnection::self()->getDetails().dir)) {
 				Utils::setFilePerms(filePrefix + mimeType);
 			}
@@ -483,11 +483,11 @@ bool Covers::copyImage(const QString& sourceDir, const QString& destDir, const Q
 	bool ok = false;
 	if (maxSize > 0 && (img.width() > maxSize || img.height() > maxSize)) {// Need to scale image...
 		img = img.scaled(QSize(maxSize, maxSize), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-		ok = img.save(destDir + destName);
+		ok = Utils::withoutColorProfile(img).save(destDir + destName);
 		DBUG_CLASS("Covers") << "Rescaling image from" << QString(sourceDir + coverFile) << img.width() << "x" << img.height() << "to" << QString(destDir + destName) << maxSize << ok;
 	}
 	else if (destName.right(4) != typeFromFilename(sourceDir + coverFile)) {// Diff extensions, so need to convert image type...
-		ok = img.save(destDir + destName);
+		ok = Utils::withoutColorProfile(img).save(destDir + destName);
 		DBUG_CLASS("Covers") << "Converting image type from" << QString(sourceDir + coverFile) << "to" << QString(destDir + destName) << ok;
 	}
 	else {// no scaling, and same image type, so we can just copy...
@@ -1680,7 +1680,7 @@ QPixmap* Covers::saveScaledCover(const QImage& img, const Song& song, int size)
 
 	if (!isOnlineServiceImage(song)) {
 		QString fileName = getScaledCoverName(song, size, true);
-		bool status = img.save(fileName, constScaledFormat);
+		bool status = Utils::withoutColorProfile(img).save(fileName, constScaledFormat);
 		DBUG_CLASS("Covers") << song.albumArtist() << song.album << song.mbAlbumId() << size << fileName << status;
 	}
 	QPixmap* pix = new QPixmap(QPixmap::fromImage(img));

@@ -25,8 +25,10 @@
 #define UTILS_H
 
 #include "thread.h"
+#include <QColorSpace>
 #include <QDir>
 #include <QFont>
+#include <QImage>
 #include <QLatin1Char>
 #include <QPainterPath>
 #include <QString>
@@ -48,6 +50,16 @@ extern const char* constDirSepCharStr;
 inline bool equal(double d1, double d2, double precision = 0.0001)
 {
 	return (fabs(d1 - d2) < precision);
+}
+
+// Qt writes sRGB images with an iCCP chunk, which makes libpng warn
+// ("profile matches sRGB but writing iCCP instead") and then flags the file
+// itself as a "known incorrect sRGB profile" when it is read back. Pixels are
+// sRGB anyway, so dropping the profile before saving loses nothing.
+inline QImage withoutColorProfile(QImage img)
+{
+	if (img.colorSpace().isValid()) img.setColorSpace(QColorSpace());
+	return img;
 }
 
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
