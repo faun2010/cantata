@@ -70,6 +70,7 @@ public:
 		int numTracks = 10;
 		Order order = Order_Random;
 		bool orderAscending = true;
+		QString description;
 	};
 
 	static const QString constExtension;
@@ -93,6 +94,7 @@ public:
 	static const QString constExcludeKey;
 	static const QString constOrderKey;
 	static const QString constOrderAscendingKey;
+	static const QString constDescriptionKey;
 	static const QChar constRangeSep;
 	static const QChar constKeyValSep;
 

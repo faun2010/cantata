@@ -25,7 +25,9 @@
 #include "gui/stdactions.h"
 #include "models/mpdlibrarymodel.h"
 #include "mpd-interface/mpdconnection.h"
+#include "network/translationservice.h"
 #include "playlistrulesdialog.h"
+#include "smartfilter.h"
 #include "smartplaylists.h"
 #include "support/action.h"
 #include "support/configuration.h"
@@ -54,6 +56,7 @@ SmartPlaylistsPage::SmartPlaylistsPage(QWidget* p)
 	connect(MPDConnection::self(), SIGNAL(searchResponse(QString, QList<Song>)), this, SLOT(searchResponse(QString, QList<Song>)));
 	connect(this, SIGNAL(getRating(QString)), MPDConnection::self(), SLOT(getRating(QString)));
 	connect(MPDConnection::self(), SIGNAL(rating(QString, quint8)), this, SLOT(rating(QString, quint8)));
+	connect(TranslationService::self(), SIGNAL(translationReady(QString, QString, QString)), this, SLOT(llmFilterReady(QString, QString, QString)));
 	connect(view, SIGNAL(itemsSelected(bool)), this, SLOT(controlActions()));
 	connect(view, SIGNAL(headerClicked(int)), SLOT(headerClicked(int)));
 	connect(addAction, SIGNAL(triggered()), SLOT(addNew()));
@@ -220,7 +223,7 @@ void SmartPlaylistsPage::filterCommand()
 		emit getRating(command.checking);
 	}
 	else {
-		addSongsToPlayQueue();
+		maybeStartLlmFilter();
 	}
 }
 
@@ -242,7 +245,7 @@ void SmartPlaylistsPage::rating(const QString& file, quint8 val)
 
 	if (command.toCheck.isEmpty()) {
 		command.checking.clear();
-		addSongsToPlayQueue();
+		maybeStartLlmFilter();
 	}
 	else {
 		command.checking = command.toCheck.takeFirst();
@@ -314,19 +317,10 @@ static bool ageSort(const Song& s1, const Song& s2)
 						 : (s1.lastModified > s2.lastModified || (s1.lastModified == s2.lastModified && s1 < s2));
 }
 
-void SmartPlaylistsPage::addSongsToPlayQueue()
+static void sortSongs(QList<Song>& songs, RulesPlaylists::Order order, bool ascending)
 {
-	if (command.songs.isEmpty()) {
-		command.clear();
-		emit error(tr("Failed to locate any matching songs"));
-		return;
-	}
-
-	QList<Song> songs = command.songs.values();
-	command.songs.clear();
-
-	sortAscending = command.orderAscending;
-	switch (command.order) {
+	sortAscending = ascending;
+	switch (order) {
 	case RulesPlaylists::Order_AlbumArtist:
 		std::sort(songs.begin(), songs.end(), albumArtistSort);
 		break;
@@ -358,6 +352,90 @@ void SmartPlaylistsPage::addSongsToPlayQueue()
 	case RulesPlaylists::Order_Random:
 		std::shuffle(songs.begin(), songs.end(), *QRandomGenerator::global());
 	}
+}
+
+void SmartPlaylistsPage::maybeStartLlmFilter()
+{
+	if (command.description.isEmpty() || !TranslationService::self()->isEnabled()) {
+		addSongsToPlayQueue();
+		return;
+	}
+	if (command.songs.isEmpty()) {
+		command.clear();
+		emit error(tr("Failed to locate any matching songs"));
+		return;
+	}
+
+	QList<Song> candidates = command.songs.values();
+	sortSongs(candidates, command.order, command.orderAscending);
+	if (candidates.count() > SmartFilter::constMaxCandidates) {
+		candidates.resize(SmartFilter::constMaxCandidates);
+	}
+	command.llmCandidates = candidates;
+	QList<SmartFilter::Candidate> llmInput;
+	for (const Song& s : candidates) {
+		SmartFilter::Candidate c;
+		c.title = s.title;
+		c.artist = s.artist;
+		c.album = s.album;
+		if (s.hasComposer()) c.composer = s.composer();
+		c.genre = s.displayGenre();
+		c.year = s.year;
+		c.secs = s.time;
+		llmInput.append(c);
+	}
+	command.llmSource = SmartFilter::buildSource(command.description, llmInput, llmInput.count());
+	command.awaitingLlm = true;
+	const QString answer = TranslationService::self()->translate(command.llmSource, QLatin1String("smart-filter-v1"));
+	if (answer != command.llmSource) {
+		// Cache hit - handle synchronously via the same path as the signal.
+		llmFilterReady(command.llmSource, QLatin1String("smart-filter-v1"), answer);
+	}
+}
+
+void SmartPlaylistsPage::llmFilterReady(const QString& source, const QString& context, const QString& translation)
+{
+	if (!command.awaitingLlm || QLatin1String("smart-filter-v1") != context || source != command.llmSource) {
+		return;
+	}
+	command.awaitingLlm = false;
+
+	bool ok = false;
+	QSet<int> selected;
+	if (translation != source) {
+		selected = SmartFilter::parseSelection(translation, command.llmCandidates.count(), &ok);
+	}
+	if (ok) {
+		QSet<Song> filtered;
+		for (int i : selected) {
+			filtered.insert(command.llmCandidates.at(i));
+		}
+		if (!filtered.isEmpty()) {
+			command.songs = filtered;
+		}
+		else {
+			ok = false;
+		}
+	}
+	command.llmCandidates.clear();
+	command.llmSource.clear();
+	// !ok: the LLM failed or returned nothing usable - fall back to the
+	// unfiltered rule results rather than adding nothing.
+	addSongsToPlayQueue();
+}
+
+void SmartPlaylistsPage::addSongsToPlayQueue()
+{
+	if (command.songs.isEmpty()) {
+		command.clear();
+		emit error(tr("Failed to locate any matching songs"));
+		return;
+	}
+
+	QList<Song> songs = command.songs.values();
+	command.songs.clear();
+
+	sortSongs(songs, command.order, command.orderAscending);
 
 	QStringList files;
 	for (int i = 0; i < command.numTracks && !songs.isEmpty(); ++i) {
@@ -390,6 +468,9 @@ void SmartPlaylistsPage::addSelectionToPlaylist(const QString& name, int action,
 		return;
 	}
 
+	if (command.awaitingLlm) {
+		TranslationService::self()->cancel(command.llmSource, QLatin1String("smart-filter-v1"));
+	}
 	command = Command(pl, action, priority, decreasePriority, command.id + 1);
 
 	QList<RulesPlaylists::Rule>::ConstIterator it = pl.rules.constBegin();

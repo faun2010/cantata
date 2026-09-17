@@ -523,6 +523,7 @@ target_sources(
         playlists/playlistspage.cpp
         playlists/storedplaylistspage.cpp
         playlists/rulesplaylists.cpp
+        playlists/smartfilter.cpp
         playlists/smartplaylists.cpp
         playlists/smartplaylistspage.cpp
         online/onlineservicespage.cpp

@@ -575,6 +575,33 @@ private Q_SLOTS:
 		QVERIFY(!systemPrompt.contains(QLatin1String("translation engine")));
 	}
 
+	void smartFilterContextUsesDedicatedSystemPrompt()
+	{
+		QTemporaryDir temporary;
+		QTcpServer server;
+		QVERIFY(server.listen(QHostAddress::LocalHost));
+		int requestCount = 0;
+		QByteArray capturedBody;
+		QJsonObject response;
+		response.insert(QLatin1String("response"), QStringLiteral("[0]"));
+		serve(server, requestCount, QJsonDocument(response).toJson(QJsonDocument::Compact), 200, 0, &capturedBody);
+		const QString config = temporary.filePath(QLatin1String("translation.ini"));
+		writeConfig(config, serverUrl(server));
+
+		TranslationService service(nullptr, config, temporary.filePath(QLatin1String("cache")));
+		QSignalSpy ready(&service, &TranslationService::translationReady);
+		service.translate(QLatin1String("Description:\ncalm piano\n\nCandidates:\n[{\"i\":0,\"title\":\"Allegro\"}]"), QLatin1String("smart-filter-v1"));
+		QTRY_COMPARE(ready.count(), 1);
+		QCOMPARE(requestCount, 1);
+
+		const QJsonObject payload = QJsonDocument::fromJson(capturedBody).object();
+		const QString systemPrompt = payload.value(QLatin1String("system")).toString();
+		// The dedicated smart-filter-v1 prompt, not the generic translation one.
+		QVERIFY(systemPrompt.contains(QLatin1String("JSON array")));
+		QVERIFY(systemPrompt.contains(QLatin1String("Candidates")));
+		QVERIFY(!systemPrompt.contains(QLatin1String("translation engine")));
+	}
+
 	void workDossierContextUsesDedicatedSystemPromptWithTargetLanguage()
 	{
 		QTemporaryDir temporary;

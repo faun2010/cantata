@@ -95,6 +95,14 @@ target_link_libraries(workinfo_test PRIVATE
 )
 add_test(NAME workinfo_test COMMAND workinfo_test)
 
+add_executable(smartfilter_test smartfilter_test.cpp ../playlists/smartfilter.cpp)
+target_include_directories(smartfilter_test PRIVATE ..)
+target_link_libraries(smartfilter_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Test
+)
+add_test(NAME smartfilter_test COMMAND smartfilter_test)
+
 add_executable(composertable_test composertable_test.cpp ../context/composertable.cpp)
 target_include_directories(composertable_test PRIVATE ..)
 target_link_libraries(composertable_test PRIVATE
