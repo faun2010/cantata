@@ -7,6 +7,7 @@
 #ifndef WIKI_TEMPLATE_UTILS_H
 #define WIKI_TEMPLATE_UTILS_H
 
+#include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 
@@ -70,6 +71,19 @@ inline QString visibleTemplateText(QString text)
 		}
 	}
 	return text;
+}
+
+// A page whose only content is a list of people who share a name must never be
+// shown as a biography - nor handed to the translator, which would happily turn
+// it into a Chinese list of namesakes. Every language marks such a page with a
+// template from the same family.
+inline bool isDisambiguationPage(const QString& page)
+{
+	static const QRegularExpression templates(
+	    QString::fromUtf8("\\{\\{\\s*(disambig|disambiguation|hndis|surname|given name|"
+	                      "\u6d88\u6b67\u4e49|\u6d88\u6b67\u7fa9|Begriffskl\u00e4rung|homonymie|desambiguaci)"),
+	    QRegularExpression::CaseInsensitiveOption);
+	return page.contains(templates);
 }
 
 }

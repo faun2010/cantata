@@ -254,6 +254,16 @@ void ArtistView::loadBio()
 	}
 
 	showSpinner();
+	// Tell the engine what is playing, so that a name shared by several people
+	// (two classical composers, or a composer and a namesake who never wrote
+	// music) resolves to whoever wrote the music in hand.
+	QStringList hint;
+	for (const QString& term : {currentSong.album, currentSong.title}) {
+		if (!term.isEmpty() && !hint.contains(term)) {
+			hint.append(term);
+		}
+	}
+	engine->setDisambiguationHint(hint);
 	engine->search(QStringList() << currentSong.artist, ContextEngine::Artist);
 }
 

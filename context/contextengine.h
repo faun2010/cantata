@@ -49,6 +49,11 @@ public:
 	virtual QString getPrefix(const QString& key) const = 0;
 	QStringList fixQuery(const QStringList& query) const;
 
+	// Extra terms (album, work, title) used to tell apart people who share a
+	// name - e.g. two classical composers - by checking which candidate page
+	// actually talks about the music being played.
+	virtual void setDisambiguationHint(const QStringList&) {}
+
 	void cancel();
 
 public Q_SLOTS:

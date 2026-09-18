@@ -53,6 +53,7 @@ public:
 	QStringList getLangs() const override;
 	QString getPrefix(const QString& key) const override;
 	QString translateLinks(QString text) const override;
+	void setDisambiguationHint(const QStringList& hint) override;
 
 public Q_SLOTS:
 	void search(const QStringList& query, Mode mode) override;

@@ -62,6 +62,11 @@ QString MetaEngine::translateLinks(QString text) const
 	return lastfm->translateLinks(wiki->translateLinks(text));
 }
 
+void MetaEngine::setDisambiguationHint(const QStringList& hint)
+{
+	wiki->setDisambiguationHint(hint);
+}
+
 void MetaEngine::search(const QStringList& query, Mode mode)
 {
 	DBUG << query << (int)mode;

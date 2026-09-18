@@ -10,6 +10,8 @@ private Q_SLOTS:
 	void usesInterlanguageLtTitle();
 	void retainsLanguageTemplateText();
 	void leavesUnknownTemplatesForExistingCleanup();
+	void detectsNamesakeListings();
+	void keepsRealBiographies();
 };
 
 void WikiTemplateUtilsTest::retainsInterlanguageTitles()
@@ -36,6 +38,24 @@ void WikiTemplateUtilsTest::leavesUnknownTemplatesForExistingCleanup()
 {
 	QString source = "{{citation needed|date=September 2026}}";
 	QCOMPARE(WikiTemplateUtils::visibleTemplateText(source), source);
+}
+
+void WikiTemplateUtilsTest::detectsNamesakeListings()
+{
+	// The page Cantata used to translate for "Julius Fu\u010d\u00edk": a list of the
+	// composer and the journalist, rather than a biography of either.
+	QVERIFY(WikiTemplateUtils::isDisambiguationPage("'''Julius Fu\u010d\u00edk''' may refer to:\n* [[Julius Fu\u010d\u00edk (composer)]]\n{{hndis|Fucik, Julius}}"));
+	QVERIFY(WikiTemplateUtils::isDisambiguationPage("{{disambiguation}}"));
+	QVERIFY(WikiTemplateUtils::isDisambiguationPage("{{ disambig }}"));
+	QVERIFY(WikiTemplateUtils::isDisambiguationPage("{{\u6d88\u6b67\u4e49}}"));
+	QVERIFY(WikiTemplateUtils::isDisambiguationPage("{{Begriffskl\u00e4rung}}"));
+	QVERIFY(WikiTemplateUtils::isDisambiguationPage("{{Surname|Fu\u010d\u00edk}}"));
+}
+
+void WikiTemplateUtilsTest::keepsRealBiographies()
+{
+	QVERIFY(!WikiTemplateUtils::isDisambiguationPage("{{Infobox musical artist}}\n'''Julius Fu\u010d\u00edk''' was a Czech composer.\n{{Authority control}}"));
+	QVERIFY(!WikiTemplateUtils::isDisambiguationPage("His work is often confused with that of his namesake; see the disambiguation page."));
 }
 
 QTEST_MAIN(WikiTemplateUtilsTest)

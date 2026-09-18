@@ -358,6 +358,10 @@ QString WikipediaEngine::translateLinks(QString text) const
 void WikipediaEngine::search(const QStringList& query, Mode mode)
 {
 	titles.clear();
+	hintFallback = QString();
+	hintFallbackLang = QString();
+	lastTitle = QString();
+	hintRetries = 0;
 	//    if (Track==mode) {
 	//        emit searchResult(QString(), QString());
 	//        return;
@@ -456,6 +460,40 @@ static int indexOf(const QStringList& l, const QString& s)
 	return -1;
 }
 
+bool WikipediaEngine::hasNamesakeCandidate(const QString& title) const
+{
+	QString base = title;
+	const int bracket = base.indexOf(QLatin1String(" ("));
+	if (bracket > 0) {
+		base = base.left(bracket);
+	}
+	base = base.simplified();
+	if (base.isEmpty()) {
+		return false;
+	}
+	for (const QString& other : titles) {
+		const QString simplified = other.simplified();
+		if (0 == simplified.compare(base, Qt::CaseInsensitive) || simplified.startsWith(base + QLatin1String(" ("), Qt::CaseInsensitive)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool WikipediaEngine::mentionsHint(const QString& page) const
+{
+	for (const QString& hint : disambiguationHint) {
+		const QString term = hint.simplified();
+		if (term.length() < 4) {
+			continue;
+		}
+		if (page.contains(term, Qt::CaseInsensitive)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void WikipediaEngine::getPage(const QStringList& query, Mode mode, const QString& lang)
 {
 	DBUG << __FUNCTION__;
@@ -492,8 +530,11 @@ void WikipediaEngine::getPage(const QStringList& query, Mode mode, const QString
 	switch (mode) {
 	default:
 	case Artist:
-		patterns = tr("artist|band|singer|vocalist|musician", "Search pattern for an artist or band, separated by |").split("|", CANTATA_SKIP_EMPTY);
-		englishPatterns = QString(QLatin1String("artist|band|singer|vocalist|musician")).split("|");
+		// The composer/conductor roles come first: for a classical artist the
+		// bare name is usually a disambiguation page listing a namesake who
+		// never wrote a note - see parsePage().
+		patterns = tr("composer|conductor|artist|band|singer|vocalist|musician", "Search pattern for an artist or band, separated by |").split("|", CANTATA_SKIP_EMPTY);
+		englishPatterns = QString(QLatin1String("composer|conductor|artist|band|singer|vocalist|musician")).split("|");
 		break;
 	case Album:
 		patterns = tr("album|score|soundtrack", "Search pattern for an album, separated by |").split("|", CANTATA_SKIP_EMPTY);
@@ -560,6 +601,7 @@ void WikipediaEngine::getPage(const QStringList& query, Mode mode, const QString
 		return;
 	}
 	const QString title = titles.takeAt(index);
+	lastTitle = title;
 
 	if (QLatin1String("List of CJK Unified Ideographs") == title) {
 		DBUG << "Unicode list?";
@@ -600,7 +642,14 @@ void WikipediaEngine::parsePage()
 
 	QStringList query = reply->property(constQueryProperty).toStringList();
 	Mode mode = (Mode)reply->property(constModeProperty).toInt();
-	if (answer.contains(QLatin1String("{{disambiguation}}")) || answer.contains(QLatin1String("{{disambig}}"))) {// tr???
+	if (WikiTemplateUtils::isDisambiguationPage(answer)) {
+		DBUG << "Disambiguation page" << lastTitle;
+		if (titles.isEmpty()) {
+			// Never show (or hand to a translator) a list of namesakes.
+			emit searchResult(hintFallback, hintFallbackLang);
+			hintFallback = QString();
+			return;
+		}
 		getPage(query, mode, hostLang);
 		return;
 	}
@@ -612,6 +661,25 @@ void WikipediaEngine::parsePage()
 	QString resp = wikiToHtml(answer, introOnly, reply->url());
 	if (introOnly && resp.isEmpty()) {
 		resp = wikiToHtml(answer, false, reply->url());
+	}
+
+	// Artists who share a name - two classical composers, a composer and a
+	// journalist - each get their own page. Work out which one is playing from
+	// the music itself: keep the page that mentions the album/work, and only
+	// when another page about a namesake is actually on offer.
+	if (Artist == mode && !resp.isEmpty() && !disambiguationHint.isEmpty() && hintRetries < 3 && hasNamesakeCandidate(lastTitle) && !mentionsHint(resp)) {
+		DBUG << "Page does not mention the music being played" << lastTitle;
+		if (hintFallback.isEmpty()) {
+			hintFallback = resp;
+			hintFallbackLang = hostLang;
+		}
+		++hintRetries;
+		getPage(query, mode, hostLang);
+		return;
+	}
+	if (Artist == mode && resp.isEmpty() && !hintFallback.isEmpty()) {
+		resp = hintFallback;
+		hostLang = hintFallbackLang;
 	}
 
 	// For track results, ensure response contains artist name!
