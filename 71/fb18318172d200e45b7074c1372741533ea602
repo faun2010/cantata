@@ -1,0 +1,41 @@
+context/wikitemplateutils.h
+  s_5d014c65e0b96a::t_f3bcfa3983d8c0 10,76-86
+  s_5d014c65e0b96a::t_0622ff4626f088 87-88
+context/metaengine.h
+  s_5d014c65e0b96a::t_cc94b438b1d7a6 56
+context/artistview.cpp
+  s_5d014c65e0b96a::t_c77b5f16c80f63 261
+  s_5d014c65e0b96a::t_61a365b9677f06 257-260,262-266
+tests/wikitemplateutils_test.cpp
+  s_5d014c65e0b96a::t_5a7c00a7dddb21 13-14,43-59
+  s_5d014c65e0b96a::t_da79b08a43ea33 60
+context/wikipediaengine.h
+  s_5d014c65e0b96a::t_cc94b438b1d7a6 48,67,70-71
+  s_5d014c65e0b96a::t_8f55070c54bc9d 54-55
+  s_5d014c65e0b96a::t_d048a4f98abdd8 68-69
+context/metaengine.cpp
+  s_5d014c65e0b96a::t_cc94b438b1d7a6 65-69
+context/wikipediaengine.cpp
+  s_5d014c65e0b96a::t_437e0461f8a7d5 361-362,533-537
+  s_5d014c65e0b96a::t_d048a4f98abdd8 363-364,463-496,604,646-652,666-683
+  s_5d014c65e0b96a::t_f3bcfa3983d8c0 645
+  s_5d014c65e0b96a::t_abaa1fd7389056 684
+context/contextengine.h
+  s_5d014c65e0b96a::t_590e25554d859b 52-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.7.5",
+  "base_commit_sha": "71fb18318172d200e45b7074c1372741533ea602",
+  "prompts": {},
+  "sessions": {
+    "s_5d014c65e0b96a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51f5f838-7f87-475d-8868-4e7a2e0b75fd",
+        "model": "claude-opus-5"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    }
+  }
+}
