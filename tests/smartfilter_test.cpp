@@ -58,26 +58,34 @@ private Q_SLOTS:
 	void parsePlainArray()
 	{
 		bool ok = false;
-		const QSet<int> selected = SmartFilter::parseSelection(QStringLiteral("[0, 2, 5]"), 10, &ok);
+		const QList<int> selected = SmartFilter::parseSelection(QStringLiteral("[0, 2, 5]"), 10, &ok);
 		QVERIFY(ok);
-		QCOMPARE(selected, QSet<int>({0, 2, 5}));
+		QCOMPARE(selected, QList<int>({0, 2, 5}));
 	}
 
 	void parseToleratesCodeFenceAndProse()
 	{
 		bool ok = false;
-		const QSet<int> selected = SmartFilter::parseSelection(
+		const QList<int> selected = SmartFilter::parseSelection(
 		    QStringLiteral("Here are the picks:\n```json\n[3, 1]\n```\nHope that helps!"), 10, &ok);
 		QVERIFY(ok);
-		QCOMPARE(selected, QSet<int>({1, 3}));
+		QCOMPARE(selected, QList<int>({3, 1}));
 	}
 
 	void parseDropsOutOfRangeAndNonNumeric()
 	{
 		bool ok = false;
-		const QSet<int> selected = SmartFilter::parseSelection(QStringLiteral("[0, 9, -1, 10, \"4\", \"abc\", null]"), 10, &ok);
+		const QList<int> selected = SmartFilter::parseSelection(QStringLiteral("[0, 9, -1, 10, \"4\", \"abc\", null]"), 10, &ok);
 		QVERIFY(ok);
-		QCOMPARE(selected, QSet<int>({0, 4, 9}));
+		QCOMPARE(selected, QList<int>({0, 9, 4}));
+	}
+
+	void parsePreservesOrderAndDropsDuplicates()
+	{
+		bool ok = false;
+		const QList<int> selected = SmartFilter::parseSelection(QStringLiteral("[5, 1, 5, 0, 1]"), 10, &ok);
+		QVERIFY(ok);
+		QCOMPARE(selected, QList<int>({5, 1, 0}));
 	}
 
 	void parseRejectsEmptyArray()

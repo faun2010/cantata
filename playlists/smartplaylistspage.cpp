@@ -372,6 +372,10 @@ void SmartPlaylistsPage::maybeStartLlmFilter()
 		candidates.resize(SmartFilter::constMaxCandidates);
 	}
 	command.llmCandidates = candidates;
+	// The candidate list is what we asked the LLM about, so it is also what we
+	// must fall back to if it fails - otherwise a >constMaxCandidates match
+	// would queue a different set of songs depending on whether the LLM worked.
+	command.songs = QSet<Song>(candidates.constBegin(), candidates.constEnd());
 	QList<SmartFilter::Candidate> llmInput;
 	for (const Song& s : candidates) {
 		SmartFilter::Candidate c;
@@ -401,17 +405,18 @@ void SmartPlaylistsPage::llmFilterReady(const QString& source, const QString& co
 	command.awaitingLlm = false;
 
 	bool ok = false;
-	QSet<int> selected;
+	QList<int> selected;
 	if (translation != source) {
 		selected = SmartFilter::parseSelection(translation, command.llmCandidates.count(), &ok);
 	}
 	if (ok) {
-		QSet<Song> filtered;
+		QList<Song> filtered;
 		for (int i : selected) {
-			filtered.insert(command.llmCandidates.at(i));
+			filtered.append(command.llmCandidates.at(i));
 		}
 		if (!filtered.isEmpty()) {
-			command.songs = filtered;
+			command.songs = QSet<Song>(filtered.constBegin(), filtered.constEnd());
+			command.orderedSongs = filtered;
 		}
 		else {
 			ok = false;
@@ -432,10 +437,16 @@ void SmartPlaylistsPage::addSongsToPlayQueue()
 		return;
 	}
 
-	QList<Song> songs = command.songs.values();
+	QList<Song> songs = command.orderedSongs.isEmpty() ? command.songs.values() : command.orderedSongs;
 	command.songs.clear();
+	const bool llmOrdered = !command.orderedSongs.isEmpty();
+	command.orderedSongs.clear();
 
-	sortSongs(songs, command.order, command.orderAscending);
+	// A curated order from the LLM is the answer to the user's description -
+	// re-sorting it by 'order' (random, by default) would throw it away.
+	if (!llmOrdered) {
+		sortSongs(songs, command.order, command.orderAscending);
+	}
 
 	QStringList files;
 	for (int i = 0; i < command.numTracks && !songs.isEmpty(); ++i) {

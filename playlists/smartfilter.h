@@ -25,7 +25,6 @@
 #define SMART_FILTER_H
 
 #include <QList>
-#include <QSet>
 #include <QString>
 
 // Network/GUI-free helpers for the smart-playlist LLM filter, so they can be
@@ -51,11 +50,12 @@ struct Candidate {
 // At most maxCandidates entries are included; callers pre-sort and pre-trim.
 QString buildSource(const QString& description, const QList<Candidate>& candidates, int maxCandidates = constMaxCandidates);
 
-// Extracts the selected candidate indices from the LLM response. Tolerates
-// markdown code fences and surrounding prose; out-of-range and non-numeric
-// entries are dropped. *ok is set false when no usable JSON array with at
-// least one valid index is found.
-QSet<int> parseSelection(const QString& response, int candidateCount, bool* ok);
+// Extracts the selected candidate indices from the LLM response, preserving
+// the order in which they were listed - that order is the preferred listening
+// order we asked for. Tolerates markdown code fences and surrounding prose;
+// out-of-range, duplicate and non-numeric entries are dropped. *ok is set
+// false when no usable JSON array with at least one valid index is found.
+QList<int> parseSelection(const QString& response, int candidateCount, bool* ok);
 
 }// namespace SmartFilter
 

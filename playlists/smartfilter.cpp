@@ -26,6 +26,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QSet>
 
 QString SmartFilter::buildSource(const QString& description, const QList<Candidate>& candidates, int maxCandidates)
 {
@@ -49,9 +50,10 @@ QString SmartFilter::buildSource(const QString& description, const QList<Candida
 	       QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact));
 }
 
-QSet<int> SmartFilter::parseSelection(const QString& response, int candidateCount, bool* ok)
+QList<int> SmartFilter::parseSelection(const QString& response, int candidateCount, bool* ok)
 {
-	QSet<int> selected;
+	QList<int> selected;
+	QSet<int> seen;
 	bool parsed = false;
 
 	QString text = response.trimmed();
@@ -70,7 +72,10 @@ QSet<int> SmartFilter::parseSelection(const QString& response, int candidateCoun
 					const int fromString = value.toString().toInt(&numeric);
 					if (numeric) index = fromString;
 				}
-				if (index >= 0 && index < candidateCount) selected.insert(index);
+				if (index >= 0 && index < candidateCount && !seen.contains(index)) {
+					seen.insert(index);
+					selected.append(index);
+				}
 			}
 			parsed = true;
 		}

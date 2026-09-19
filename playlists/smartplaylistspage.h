@@ -52,6 +52,7 @@ class SmartPlaylistsPage : public SinglePageWidget {
 			description.clear();
 			llmSource.clear();
 			llmCandidates.clear();
+			orderedSongs.clear();
 			awaitingLlm = false;
 		}
 		bool haveRating() const { return ratingFrom >= 0 && ratingTo > 0; }
@@ -81,6 +82,9 @@ class SmartPlaylistsPage : public SinglePageWidget {
 		QString description;
 		QString llmSource;
 		QList<Song> llmCandidates;
+		// Set when the LLM returned a curated listening order; used verbatim
+		// instead of re-sorting by 'order'.
+		QList<Song> orderedSongs;
 		bool awaitingLlm = false;
 
 		quint32 id;
