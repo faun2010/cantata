@@ -84,6 +84,7 @@ DevicesPage::DevicesPage(QWidget* p)
 #endif
 	proxy.setSourceModel(DevicesModel::self());
 	view->setModel(&proxy);
+	connect(&proxy, &ProxyModel::filterUpdatedAsync, this, &DevicesPage::searchItems);
 	view->setRootIsDecorated(false);
 	view->setSearchResetLevel(1);
 	Configuration config(metaObject()->className());

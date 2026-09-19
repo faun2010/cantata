@@ -22,12 +22,26 @@
  */
 
 #include "proxymodel.h"
+#include "network/musicsearch.h"
+#include "support/searchterms.h"
 #include "gui/settings.h"
 #include <QChar>
 #include <QLatin1String>
 #include <QMap>
 #include <QMimeData>
 #include <QString>
+
+ProxyModel::ProxyModel(QObject* parent)
+	: QSortFilterProxyModel(parent), isSorted(false), filterEnabled(false), filter(nullptr), yearFrom(0), yearTo(0)
+{
+	connect(MusicSearch::self(), &MusicSearch::alternativesReady, this, [this](const QString& term) {
+		if (!filterStrings.contains(term)) return;
+		const QString current = origFilterText;
+		origFilterText.clear();
+		update(current);
+		emit filterUpdatedAsync();
+	});
+}
 
 bool ProxyModel::matchesFilter(const Song& s) const
 {
@@ -50,49 +64,7 @@ bool ProxyModel::matchesFilter(const Song& s) const
 
 bool ProxyModel::matchesFilter(const QStringList& strings) const
 {
-	if (filterStrings.isEmpty()) {
-		return true;
-	}
-
-	uint ums = unmatchedStrings;
-	int numStrings = filterStrings.count();
-
-	for (const QString& str : strings) {
-		QString candidate = str.simplified();
-		QString basic;
-		bool useBasic = false;
-
-		for (int i = 0; i < numStrings; ++i) {
-			const QString& f = filterStrings.at(i);
-			// Try to match string as entered by user...
-			if (candidate.contains(f, Qt::CaseInsensitive)) {
-				ums &= ~(1 << i);
-				if (0 == ums) {
-					return true;
-				}
-			}
-			else {
-				// Try converting string to basic - e.g. remove umlauts, etc...
-				if (basic.isEmpty()) {
-					basic = candidate;
-					for (int i = 0; i < basic.size(); ++i) {
-						if (basic.at(i).decompositionTag() != QChar::NoDecomposition) {
-							basic[i] = basic[i].decomposition().at(0);
-							useBasic = true;
-						}
-					}
-				}
-				if (useBasic && basic.contains(f, Qt::CaseInsensitive)) {
-					ums &= ~(1 << i);
-					if (0 == ums) {
-						return true;
-					}
-				}
-			}
-		}
-	}
-
-	return false;
+	return SearchTerms::matches(filterAlternatives, strings);
 }
 //#include <QDebug>
 
@@ -101,7 +73,7 @@ static const quint16 constMaxYear = 2500;// 2500 (bit hopeful here :-) )
 
 bool ProxyModel::update(const QString& txt)
 {
-	QString text = txt.length() < 2 ? QString() : txt;
+	QString text = txt.length() < 2 && !MusicSearch::containsChinese(txt) ? QString() : txt;
 	//    qWarning() << "UPDATE" << txt << (void *)f;
 	if (text == origFilterText) {
 		//        qWarning() <<"NO CHANGE";
@@ -110,9 +82,10 @@ bool ProxyModel::update(const QString& txt)
 
 	bool wasEmpty = isEmpty();
 	filterStrings.clear();
+	filterAlternatives.clear();
 	yearFrom = yearTo = 0;
 
-	QStringList parts = text.split(' ', CANTATA_SKIP_EMPTY, Qt::CaseInsensitive);
+	QStringList parts = SearchTerms::tokens(text);
 
 	for (const auto& str : parts) {
 		if (str.startsWith('#')) {
@@ -137,10 +110,9 @@ bool ProxyModel::update(const QString& txt)
 		filterStrings.append(str);
 	}
 
-	unmatchedStrings = 0;
-	const int n = qMin(filterStrings.count(), (int)(sizeof(uint) * 8));
-	for (int i = 0; i < n; ++i) {
-		unmatchedStrings |= (1 << i);
+	MusicSearch::self()->setQuery(this, filterStrings);
+	for (const QString& term : filterStrings) {
+		filterAlternatives.append(SearchTerms::prepare({ MusicSearch::self()->alternatives(term) }).first());
 	}
 
 	origFilterText = text;

@@ -1,0 +1,15 @@
+[Translation]
+enabled=false
+provider=ollama
+url=http://127.0.0.1:11434
+model=qwen3.8:27b
+targetLanguage=Simplified Chinese
+promptVersion=2
+timeoutMs=180000
+searchTimeoutMs=30000
+cooldownSeconds=30
+maxMemoryEntries=512
+maxConcurrentRequests=1
+maxQueuedRequests=16
+disableThinking=true
+apiKey=

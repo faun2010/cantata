@@ -26,14 +26,16 @@
 
 #include "config.h"
 #include "mpd-interface/song.h"
+#include "support/searchterms.h"
 #include <QSortFilterProxyModel>
 #include <QStringList>
 
 class QMimeData;
 
 class ProxyModel : public QSortFilterProxyModel {
+	Q_OBJECT
 public:
-	ProxyModel(QObject* parent) : QSortFilterProxyModel(parent), isSorted(false), filterEnabled(false), filter(nullptr) {}
+	ProxyModel(QObject* parent);
 	~ProxyModel() override {}
 
 	bool update(const QString& text);
@@ -57,6 +59,12 @@ public:
 	QMimeData* mimeData(const QModelIndexList& indexes) const override;
 	QModelIndexList leaves(const QModelIndexList& list) const;
 
+Q_SIGNALS:
+	// Emitted after the filter has been re-applied asynchronously (e.g. once LLM-provided search
+	// alternatives arrive), so views can redo the same post-update steps (expandAll etc) that
+	// normally follow a direct call to update().
+	void filterUpdatedAsync();
+
 protected:
 	bool matchesFilter(const Song& s) const;
 	bool matchesFilter(const QStringList& strings) const;
@@ -70,7 +78,7 @@ protected:
 	QModelIndex rootIndex;
 	QString origFilterText;
 	QStringList filterStrings;
-	uint unmatchedStrings;
+	QList<SearchTerms::NeedleGroup> filterAlternatives;
 	const void* filter;
 	quint16 yearFrom;
 	quint16 yearTo;

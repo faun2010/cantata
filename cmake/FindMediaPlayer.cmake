@@ -16,8 +16,8 @@ find_package_handle_standard_args(MediaPlayer DEFAULT_MSG MediaPlayer_LIBRARY)
 
 if(MediaPlayer_FOUND)
 	set(MediaPlayer_LIBRARIES ${MediaPlayer_LIBRARY})
-	add_library(MediaPlayer::MediaPlayer UNKNOWN IMPORTED)
+	add_library(MediaPlayer::MediaPlayer INTERFACE IMPORTED)
 	set_target_properties(MediaPlayer::MediaPlayer PROPERTIES
-		IMPORTED_LOCATION "${MediaPlayer_LIBRARY}"
+		INTERFACE_LINK_LIBRARIES "${MediaPlayer_LIBRARY}"
 	)
 endif()

@@ -1568,7 +1568,10 @@ void MPDConnection::getCover(const Song& song)
 	int imageSize = 0;
 	QByteArray imageData;
 	bool firstRun = true;
-	QString path = Utils::getDir(song.file);
+	// MPD's albumart command takes a song URI. Passing the containing
+	// directory leaves a trailing slash, which MPD rejects as an unsafe
+	// relative URI ("Bad relative path").
+	QString path = song.file;
 	bool embedded = false;
 	while (dataToRead != 0) {
 		Response response;

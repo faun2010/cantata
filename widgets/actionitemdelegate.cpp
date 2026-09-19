@@ -24,16 +24,18 @@
 #include "actionitemdelegate.h"
 #include "config.h"
 #include "groupedview.h"
+#include "musictooltip.h"
 #include "models/actionmodel.h"
 #include "models/roles.h"
+#include "network/translationservice.h"
 #include "support/icon.h"
 #include "support/utils.h"
 #include <QApplication>
+#include <QCursor>
 #include <QHelpEvent>
 #include <QListView>
 #include <QPainter>
 #include <QPixmap>
-#include <QPointer>
 #include <QToolTip>
 
 int ActionItemDelegate::constBorder = 1;
@@ -119,6 +121,11 @@ static void drawBgnd(QPainter* painter, const QRect& rx, bool light)
 ActionItemDelegate::ActionItemDelegate(QObject* p)
 	: QStyledItemDelegate(p), largeIcons(false), underMouse(false)
 {
+	connect(TranslationService::self(), &TranslationService::translationReady, this,
+	        [this](const QString& source, const QString& context, const QString& translation) {
+			if (getAction(pendingTooltip.index)) return;
+			MusicToolTip::handleTranslationReady(source, context, translation, pendingTooltip);
+		});
 }
 
 void ActionItemDelegate::drawIcons(QPainter* painter, const QRect& r, bool mouseOver, bool rtl, ActionPos actionPos, const QModelIndex& index) const
@@ -159,7 +166,12 @@ bool ActionItemDelegate::helpEvent(QHelpEvent* e, QAbstractItemView* view, const
 	if (QEvent::ToolTip == e->type()) {
 		QAction* act = getAction(index);
 		if (act) {
+			pendingTooltip.clear();
 			QToolTip::showText(e->globalPos(), act->toolTip(), view);
+			return true;
+		}
+
+		if (MusicToolTip::showTranslatedTableTooltip(e, view, index, pendingTooltip)) {
 			return true;
 		}
 	}

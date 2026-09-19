@@ -54,6 +54,7 @@ PodcastWidget::PodcastWidget(PodcastService* s, QWidget* p)
 
 	proxy.setSourceModel(srv);
 	view->setModel(&proxy);
+	connect(&proxy, &ProxyModel::filterUpdatedAsync, this, &PodcastWidget::doSearch);
 
 	view->alwaysShowHeader();
 	connect(view, SIGNAL(headerClicked(int)), SLOT(headerClicked(int)));

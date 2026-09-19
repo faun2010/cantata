@@ -24,7 +24,9 @@
 #ifndef ACTIONITEMDELEGATE_H
 #define ACTIONITEMDELEGATE_H
 
+#include "musictooltip.h"
 #include <QStyledItemDelegate>
+#include <QString>
 
 class QAction;
 
@@ -65,6 +67,7 @@ private:
 protected:
 	bool largeIcons;
 	bool underMouse;
+	MusicToolTip::PendingState pendingTooltip;
 };
 
 #endif

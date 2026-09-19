@@ -22,6 +22,7 @@
  */
 
 #include "nowplayingwidget.h"
+#include "network/translationservice.h"
 #include "gui/settings.h"
 #include "models/playqueuemodel.h"
 #include "mpd-interface/mpdconnection.h"
@@ -48,6 +49,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
+#include <QHelpEvent>
 
 static const int constPollMpd = 5;// Poll every X seconds when playing
 static const char* constUserSettingProp = "user-setting";
@@ -314,6 +316,16 @@ NowPlayingWidget::NowPlayingWidget(QWidget* p)
 	connect(this, SIGNAL(setRating(QString, quint8)), MPDConnection::self(), SLOT(setRating(QString, quint8)));
 	connect(PlayQueueModel::self(), SIGNAL(currentSongRating(QString, quint8)), this, SLOT(rating(QString, quint8)));
 	connect(MPDStatus::self(), SIGNAL(updated()), this, SLOT(updateInfo()));
+	track->installEventFilter(this);
+	artist->installEventFilter(this);
+	connect(TranslationService::self(), &TranslationService::translationReady, this,
+	        [this](const QString& source, const QString& context, const QString& translation) {
+			if (source == tooltipSource && context == tooltipContext && tooltipWidget && tooltipWidget->isVisible() &&
+			    (tooltipWidget == track ? track->fullText() : artist->fullText()) == source && QApplication::activeWindow() == window() &&
+			    tooltipWidget->rect().contains(tooltipWidget->mapFromGlobal(QCursor::pos()))) {
+				QToolTip::showText(QCursor::pos(), QStringLiteral("<qt>%1</qt>").arg(TranslationService::plainTextToHtml(translation)), tooltipWidget);
+			}
+		});
 
 	Action* copy = ActionCollection::get()->createAction("copy-current-info", tr("Copy To Clipboard"));
 	copy->setSettingsText(tr("Now Playing") + QLatin1String(" / ") + Utils::strippedText(copy->text()));
@@ -326,14 +338,39 @@ NowPlayingWidget::NowPlayingWidget(QWidget* p)
 
 void NowPlayingWidget::update(const Song& song)
 {
+	tooltipWidget.clear();
+	tooltipSource.clear();
 	currentSongFile = song.file;
 	ratingWidget->setEnabled(!song.isEmpty() && Song::Standard == song.type);
 	ratingWidget->setValue(0);
 	updateInfo();
 	track->setText(song.mainText());
 	artist->setText(song.subText());
+	track->setToolTip(song.mainText());
+	artist->setToolTip(song.subText());
 	track->setContextMenuPolicy(track->fullText().isEmpty() ? Qt::NoContextMenu : Qt::ActionsContextMenu);
 	artist->setContextMenuPolicy(artist->fullText().isEmpty() ? Qt::NoContextMenu : Qt::ActionsContextMenu);
+}
+
+bool NowPlayingWidget::eventFilter(QObject* obj, QEvent* event)
+{
+	if (obj == tooltipWidget && (event->type() == QEvent::Leave || event->type() == QEvent::Hide)) {
+		tooltipWidget.clear();
+		tooltipSource.clear();
+	}
+	if ((obj == track || obj == artist) && event->type() == QEvent::ToolTip) {
+		QHelpEvent* help = static_cast<QHelpEvent*>(event);
+		const QString source = obj == track ? track->fullText() : artist->fullText();
+		if (!source.isEmpty() && isVisible() && QApplication::activeWindow() == window()) {
+			tooltipSource = source;
+			tooltipContext = QLatin1String("music-name");
+			tooltipWidget = static_cast<QWidget*>(obj);
+			const QString translated = TranslationService::self()->translate(source, tooltipContext);
+			QToolTip::showText(help->globalPos(), QStringLiteral("<qt>%1</qt>").arg(TranslationService::plainTextToHtml(translated)), static_cast<QWidget*>(obj));
+			return true;
+		}
+	}
+	return QWidget::eventFilter(obj, event);
 }
 
 void NowPlayingWidget::startTimer()

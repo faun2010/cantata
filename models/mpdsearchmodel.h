@@ -25,6 +25,7 @@
 #define MPD_SEARCH_MODEL_H
 
 #include "searchmodel.h"
+#include <QSet>
 
 class MpdSearchModel : public SearchModel {
 	Q_OBJECT
@@ -43,15 +44,26 @@ Q_SIGNALS:
 
 private Q_SLOTS:
 	void searchFinished(int id, const QList<Song>& result);
+	void searchAlternativesReady(const QString& term);
+	void searchAlternativesFinished(const QString& term);
+	void submitSearches(const QStringList& values);
 	void coverLoaded(const Song& song, int s);
 	void ratingResult(const QString& file, quint8 r);
 
 private:
 	void clearItems();
+	void finishIfComplete();
+	bool expandsCurrentSearch() const;
 	const Song* toSong(const QModelIndex& index) const { return index.isValid() ? static_cast<const Song*>(index.internalPointer()) : nullptr; }
 
 private:
 	int currentId;
+	int pendingSearches;
+	bool alternativesPending;
+	bool startingSearch;
+	bool busy;
+	QSet<QString> submittedValues;
+	QSet<QString> resultFiles;
 };
 
 #endif

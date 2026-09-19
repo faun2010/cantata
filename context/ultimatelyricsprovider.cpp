@@ -25,6 +25,7 @@
 #include "network/networkaccessmanager.h"
 #include <QDebug>
 #include <QRegularExpression>
+#include <QStringConverter>
 #include <QUrl>
 #include <QUrlQuery>
 #include <QXmlStreamReader>

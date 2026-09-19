@@ -1,0 +1,43 @@
+# Deploy only plugins used by this Widgets/SQLite application. Qt's default
+# plugin scan also copies optional database drivers with external dependencies.
+set(bundle "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/@APP_BUNDLE_DIR@")
+set(arguments "${bundle}" -no-plugins -always-overwrite "-libpath=@QT_BIN_DIR@/../lib")
+set(plugin_patterns
+    platforms/libqcocoa.dylib
+    styles/libqmacstyle.dylib
+    imageformats/*.dylib
+    iconengines/*.dylib
+    sqldrivers/libqsqlite.dylib
+    tls/libqsecuretransportbackend.dylib
+    tls/libqcertonlybackend.dylib
+    networkinformation/*.dylib
+)
+set(include_multimedia "@ENABLE_HTTP_STREAM_PLAYBACK@")
+set(include_libvlc "@ENABLE_LIBVLC@")
+if(include_multimedia AND NOT include_libvlc)
+    list(APPEND plugin_patterns multimedia/libdarwinmediaplugin.dylib multimedia/libffmpegmediaplugin.dylib)
+endif()
+foreach(pattern IN LISTS plugin_patterns)
+    file(GLOB plugins "@QT_PLUGINS_DIR@/${pattern}")
+    foreach(plugin IN LISTS plugins)
+        file(RELATIVE_PATH relative "@QT_PLUGINS_DIR@" "${plugin}")
+        get_filename_component(directory "${relative}" DIRECTORY)
+        file(INSTALL "${plugin}" DESTINATION "${bundle}/Contents/PlugIns/${directory}")
+        list(APPEND arguments "-executable=${bundle}/Contents/PlugIns/${relative}")
+    endforeach()
+endforeach()
+foreach(helper cantata-tags cantata-replaygain)
+    if(EXISTS "${bundle}/Contents/MacOS/${helper}")
+        list(APPEND arguments "-executable=${bundle}/Contents/MacOS/${helper}")
+    endif()
+endforeach()
+file(MAKE_DIRECTORY "${bundle}/Contents/Resources")
+file(WRITE "${bundle}/Contents/Resources/qt.conf" "[Paths]\nPlugins = PlugIns\n")
+execute_process(COMMAND "@MACDEPLOYQT_EXECUTABLE@" ${arguments} RESULT_VARIABLE _deploy_result)
+if(NOT _deploy_result EQUAL 0)
+    message(FATAL_ERROR "macdeployqt failed with exit code ${_deploy_result}")
+endif()
+execute_process(COMMAND codesign --force --deep --sign "-" "${bundle}" RESULT_VARIABLE _codesign_result)
+if(NOT _codesign_result EQUAL 0)
+    message(FATAL_ERROR "codesign failed with exit code ${_codesign_result}")
+endif()

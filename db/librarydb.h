@@ -128,7 +128,7 @@ public:
 	QSet<QString> get(const QString& type);
 	void getDetails(QSet<QString>& artists, QSet<QString>& albumArtists, QSet<QString>& composers, QSet<QString>& albums, QSet<QString>& genres);
 	bool songExists(const Song& song);
-	bool setFilter(const QString& f, const QString& genre = QString());
+	bool setFilter(const QString& f, const QString& genre = QString(), const QMap<QString, QStringList>& alternatives = {});
 	const QString& getFilter() const { return filter; }
 	int getCurrentVersion() const { return currentVersion; }
 
@@ -161,6 +161,7 @@ protected:
 	QSqlQuery* insertSongQuery;
 	QElapsedTimer timer;
 	QString filter;
+	QStringList filterGroups;
 	QString genreFilter;
 	QString yearFilter;
 	QMap<QString, QSet<QString>> detailsCache;

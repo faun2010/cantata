@@ -325,13 +325,35 @@ void SearchModel::results(const QList<Song>& songs)
 	songList.clear();
 	songList = songs;
 	endResetModel();
-	quint32 time = 0;
-	for (const Song& s : songList) {
-		time += s.time;
-	}
-
-	emit statsUpdated(songList.size(), time);
+	updateStats();
 	emit searched();
+}
+
+void SearchModel::appendResults(const QList<Song>& songs)
+{
+	if (songs.isEmpty()) return;
+
+	const int first = songList.size();
+	beginInsertRows(QModelIndex(), first, first + songs.size() - 1);
+	const QModelIndexList oldPersistent = persistentIndexList();
+	QList<QPair<int, int>> persistentPositions;
+	persistentPositions.reserve(oldPersistent.size());
+	for (const QModelIndex& index : oldPersistent) persistentPositions.append(qMakePair(index.row(), index.column()));
+	for (const Song& song : songs) songList.append(song);
+
+	QModelIndexList newPersistent;
+	newPersistent.reserve(persistentPositions.size());
+	for (const auto& position : persistentPositions) newPersistent.append(index(position.first, position.second));
+	changePersistentIndexList(oldPersistent, newPersistent);
+	endInsertRows();
+	updateStats();
+}
+
+void SearchModel::updateStats()
+{
+	quint32 time = 0;
+	for (const Song& song : songList) time += song.time;
+	emit statsUpdated(songList.size(), time);
 }
 
 #include "moc_searchmodel.cpp"

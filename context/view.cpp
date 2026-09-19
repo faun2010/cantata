@@ -28,6 +28,7 @@
 #include "support/actioncollection.h"
 #include "support/gtkstyle.h"
 #include "support/spinner.h"
+#include "support/utils.h"
 #include "widgets/icons.h"
 #include "widgets/textbrowser.h"
 #include <QBuffer>
@@ -55,7 +56,7 @@ QString View::encode(const QImage& img)
 	QByteArray bytes;
 	QBuffer buffer(&bytes);
 	buffer.open(QIODevice::WriteOnly);
-	img.save(&buffer, "PNG");
+	Utils::withoutColorProfile(img).save(&buffer, "PNG");
 #ifdef CONTEXT_CENTERED
 	return QString("<div style=\"text-align:center;\"><img src=\"data:image/png;base64,%1\"/></div>").arg(QString(buffer.data().toBase64()));
 #else

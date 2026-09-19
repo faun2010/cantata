@@ -22,6 +22,7 @@
  */
 
 #include "librarydb.h"
+#include "support/searchterms.h"
 #include "support/utils.h"
 #include <QCoreApplication>
 #include <QDebug>
@@ -392,7 +393,7 @@ static QString albumSort(const Song& s)
 class SqlQuery {
 public:
 	SqlQuery(const QString& colSpec, QSqlDatabase& database)
-		: db(database), fts(false), columSpec(colSpec), limit(0)
+		: db(database), columSpec(colSpec), limit(0)
 	{
 	}
 
@@ -432,12 +433,11 @@ public:
 		}
 	}
 
-	void setFilter(const QString& filter, const QString yearFilter)
+	void setFilter(const QStringList& filters, const QString yearFilter)
 	{
-		if (!filter.isEmpty()) {
-			whereClauses << "songs_fts match ?";
+		for (const QString& filter : filters) {
+			whereClauses << "songs.ROWID IN (SELECT docid FROM songs_fts WHERE songs_fts MATCH ?)";
 			boundValues << "\'" + filter + "\'";
-			fts = true;
 		}
 		if (!yearFilter.isEmpty()) {
 			whereClauses << yearFilter;
@@ -456,9 +456,7 @@ public:
 
 	bool exec()
 	{
-		QString sql = fts
-				? QString("SELECT %1 FROM songs INNER JOIN songs_fts AS fts ON songs.ROWID = fts.ROWID").arg(columSpec)
-				: QString("SELECT %1 FROM songs").arg(columSpec);
+		QString sql = QString("SELECT %1 FROM songs").arg(columSpec);
 
 		if (!whereClauses.isEmpty()) {
 			sql += " WHERE " + whereClauses.join(" AND ");
@@ -487,7 +485,6 @@ public:
 private:
 	QSqlDatabase& db;
 	QSqlQuery query;
-	bool fts;
 	QString columSpec;
 	QStringList whereClauses;
 	QVariantList boundValues;
@@ -688,7 +685,7 @@ QList<LibraryDb::Genre> LibraryDb::getGenres()
 		}
 		queryStr += "artistId";
 		SqlQuery query(queryStr, *db);
-		query.setFilter(filter, yearFilter);
+		query.setFilter(filterGroups, yearFilter);
 
 		query.exec();
 		DBUG << query.executedQuery();
@@ -723,7 +720,7 @@ QList<LibraryDb::Artist> LibraryDb::getArtists(const QString& genre)
 	QMap<QString, int> albumMap;
 	if (0 != currentVersion && db) {
 		SqlQuery query("distinct artistId, albumId, artistSort", *db);
-		query.setFilter(filter, yearFilter);
+		query.setFilter(filterGroups, yearFilter);
 		if (!genre.isEmpty()) {
 			query.addWhere("genre", genre);
 		}
@@ -772,7 +769,7 @@ QList<LibraryDb::Album> LibraryDb::getAlbums(const QString& artistId, const QStr
 			queryString += ", artistId, artistSort";
 		}
 		SqlQuery query(queryString, *db);
-		query.setFilter(filter, yearFilter);
+		query.setFilter(filterGroups, yearFilter);
 		if (!artistId.isEmpty()) {
 			query.addWhere("artistId", artistId);
 		}
@@ -903,7 +900,7 @@ QList<Song> LibraryDb::getTracks(const QString& artistId, const QString& albumId
 	if (0 != currentVersion && db) {
 		SqlQuery query("*", *db);
 		if (useFilter) {
-			query.setFilter(filter, yearFilter);
+			query.setFilter(filterGroups, yearFilter);
 		}
 		if (!artistId.isEmpty()) {
 			query.addWhere("artistId", artistId);
@@ -1174,15 +1171,15 @@ static const quint16 constMinYear = 1500;
 static const quint16 constMaxYear = 2500;// 2500 (bit hopeful here :-) )
 static QRegularExpression longStringRegex = QRegularExpression("\\s+");
 
-bool LibraryDb::setFilter(const QString& f, const QString& genre)
+bool LibraryDb::setFilter(const QString& f, const QString& genre, const QMap<QString, QStringList>& alternatives)
 {
 	QString newFilter = f.trimmed().toLower();
 	QString year;
+	QStringList tokens;
 	if (!f.isEmpty()) {
 		QStringList strings(newFilter.split(longStringRegex));
 		static QList<QLatin1Char> replaceChars = QList<QLatin1Char>() << QLatin1Char('(') << QLatin1Char(')') << QLatin1Char('"')
 																	  << QLatin1Char(':') << QLatin1Char('-') << QLatin1Char('#');
-		QStringList tokens;
 		for (QString str : strings) {
 			if (str.startsWith('#')) {
 				QStringList parts = str.mid(1).split('-');
@@ -1214,6 +1211,14 @@ bool LibraryDb::setFilter(const QString& f, const QString& genre)
 					}
 				}
 			}
+			const QStringList expanded = alternatives.value(str);
+			if (expanded.size() > 1) {
+				const QString group = SearchTerms::ftsAlternatives(expanded);
+				if (!group.isEmpty()) {
+					tokens.append(group);
+					continue;
+				}
+			}
 			for (const QLatin1Char ch : replaceChars) {
 				str.replace(ch, '?');
 			}
@@ -1224,8 +1229,9 @@ bool LibraryDb::setFilter(const QString& f, const QString& genre)
 		newFilter = tokens.join(" ");
 		DBUG << newFilter;
 	}
-	bool modified = newFilter != filter || genre != genreFilter || year != yearFilter;
+	bool modified = tokens != filterGroups || genre != genreFilter || year != yearFilter;
 	filter = newFilter;
+	filterGroups = tokens;
 	genreFilter = genre;
 	yearFilter = year;
 	return modified;

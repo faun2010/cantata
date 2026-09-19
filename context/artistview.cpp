@@ -27,6 +27,7 @@
 #include "gui/covers.h"
 #include "models/mpdlibrarymodel.h"
 #include "network/networkaccessmanager.h"
+#include "network/translationservice.h"
 #include "support/action.h"
 #include "support/actioncollection.h"
 #include "support/utils.h"
@@ -104,7 +105,11 @@ ArtistView::ArtistView(QWidget* parent)
 	engine = ContextEngine::create(this);
 	refreshAction = ActionCollection::get()->createAction("refreshartist", tr("Refresh Artist Information"), Icons::self()->refreshIcon);
 	connect(refreshAction, SIGNAL(triggered()), this, SLOT(refresh()));
+	originalTextAction = new QAction(tr("Show original"), this);
+	originalTextAction->setCheckable(true);
+	connect(originalTextAction, &QAction::toggled, this, &ArtistView::setBio);
 	connect(engine, SIGNAL(searchResult(QString, QString)), this, SLOT(searchResponse(QString, QString)));
+	connect(TranslationService::self(), &TranslationService::translationReady, this, &ArtistView::biographyTranslationReady);
 	connect(Covers::self(), SIGNAL(artistImage(Song, QImage, QString)), SLOT(artistImage(Song, QImage, QString)));
 	connect(Covers::self(), SIGNAL(coverUpdated(Song, QImage, QString)), SLOT(artistImageUpdated(Song, QImage, QString)));
 	connect(text, SIGNAL(anchorClicked(QUrl)), SLOT(show(QUrl)));
@@ -128,6 +133,7 @@ void ArtistView::showContextMenu(const QPoint& pos)
 {
 	QMenu* menu = text->createStandardContextMenu();
 	menu->addSeparator();
+	menu->addAction(originalTextAction);
 	if (cancelJobAction->isEnabled()) {
 		menu->addAction(cancelJobAction);
 	}
@@ -181,6 +187,10 @@ void ArtistView::update(const Song& s, bool force)
 		clear();
 		pic.clear();
 		biography.clear();
+		originalBiography.clear();
+		biographySource.clear();
+		biographyTranslationContext.clear();
+		biographyTranslation = BiographyTranslation::Prepared();
 		albums.clear();
 		similarArtists = QString();
 		if (!currentSong.isEmpty()) {
@@ -244,6 +254,16 @@ void ArtistView::loadBio()
 	}
 
 	showSpinner();
+	// Tell the engine what is playing, so that a name shared by several people
+	// (two classical composers, or a composer and a namesake who never wrote
+	// music) resolves to whoever wrote the music in hand.
+	QStringList hint;
+	for (const QString& term : {currentSong.album, currentSong.title}) {
+		if (!term.isEmpty() && !hint.contains(term)) {
+			hint.append(term);
+		}
+	}
+	engine->setDisambiguationHint(hint);
 	engine->search(QStringList() << currentSong.artist, ContextEngine::Artist);
 }
 
@@ -309,7 +329,11 @@ void ArtistView::handleSimilarReply()
 
 void ArtistView::setBio()
 {
-	QString html = pic + "<br>" + biography;
+	if (currentSong.isEmpty()) {
+		clear();
+		return;
+	}
+	QString html = pic + "<br>" + (originalTextAction->isChecked() ? originalBiography : biography);
 	if (!similarArtists.isEmpty()) {
 		html += similarArtists;
 	}
@@ -385,6 +409,16 @@ void ArtistView::abort()
 void ArtistView::searchResponse(const QString& resp, const QString& lang)
 {
 	biography = engine->translateLinks(resp);
+	originalBiography = biography;
+	biographyTranslation = BiographyTranslation::prepare(biography);
+	biographySource = biographyTranslation.source;
+	biographyTranslationContext = QLatin1String("Artist biography for ") + currentSong.artist;
+	if (TranslationService::self()->isEnabled() && !biographySource.isEmpty()) {
+		const QString translated = TranslationService::self()->translate(biographySource, biographyTranslationContext);
+		if (translated != biographySource) {
+			biography = BiographyTranslation::restore(translated, biographyTranslation);
+		}
+	}
 	hideSpinner();
 
 	if (!resp.isEmpty() && !lang.isEmpty()) {
@@ -394,6 +428,19 @@ void ArtistView::searchResponse(const QString& resp, const QString& lang)
 	}
 	}
 	loadSimilar();
+	setBio();
+}
+
+void ArtistView::biographyTranslationReady(const QString& source, const QString& context, const QString& translation)
+{
+	if (source != biographySource || context != biographyTranslationContext ||
+	    context != QLatin1String("Artist biography for ") + currentSong.artist) {
+		return;
+	}
+	if (translation == source) {
+		return;
+	}
+	biography = BiographyTranslation::restore(translation, biographyTranslation);
 	setBio();
 }
 

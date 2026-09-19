@@ -39,7 +39,7 @@ class SmartPlaylistsPage : public SinglePageWidget {
 			: playlist(e.name), action(a), priority(prio), decreasePriority(dec), includeUnrated(e.includeUnrated),
 			  ratingFrom(e.ratingFrom), ratingTo(e.ratingTo),
 			  minDuration(e.minDuration), maxDuration(e.maxDuration), maxAge(e.maxAge), numTracks(e.numTracks), order(e.order),
-			  orderAscending(e.orderAscending), id(i) {}
+			  orderAscending(e.orderAscending), description(e.description), id(i) {}
 		bool isEmpty() const { return playlist.isEmpty(); }
 		void clear()
 		{
@@ -49,6 +49,11 @@ class SmartPlaylistsPage : public SinglePageWidget {
 			songs.clear();
 			toCheck.clear();
 			checking.clear();
+			description.clear();
+			llmSource.clear();
+			llmCandidates.clear();
+			orderedSongs.clear();
+			awaitingLlm = false;
 		}
 		bool haveRating() const { return ratingFrom >= 0 && ratingTo > 0; }
 
@@ -74,6 +79,14 @@ class SmartPlaylistsPage : public SinglePageWidget {
 		RulesPlaylists::Order order = RulesPlaylists::Order_Random;
 		bool orderAscending = true;
 
+		QString description;
+		QString llmSource;
+		QList<Song> llmCandidates;
+		// Set when the LLM returned a curated listening order; used verbatim
+		// instead of re-sorting by 'order'.
+		QList<Song> orderedSongs;
+		bool awaitingLlm = false;
+
 		quint32 id;
 
 		QString checking;
@@ -98,12 +111,14 @@ private Q_SLOTS:
 	void headerClicked(int level);
 	void searchResponse(const QString& id, const QList<Song>& songs);
 	void rating(const QString& file, quint8 val);
+	void llmFilterReady(const QString& source, const QString& context, const QString& translation);
 
 private:
 	void doSearch() override;
 	void controlActions() override;
 	void enableWidgets(bool enable);
 	void filterCommand();
+	void maybeStartLlmFilter();
 	void addSongsToPlayQueue();
 	void addSelectionToPlaylist(const QString& name, int action, quint8 priority, bool decreasePriority) override;
 

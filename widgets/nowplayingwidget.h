@@ -29,11 +29,14 @@
 #include <QElapsedTimer>
 #include <QSlider>
 #include <QWidget>
+#include <QPointer>
 
 class QTimer;
 class QLabel;
 class TimeLabel;
 class RatingWidget;
+class QEvent;
+class QHelpEvent;
 struct Song;
 
 class PosSlider : public QSlider {
@@ -70,6 +73,7 @@ public:
 	void initColors();
 	QColor textColor() const { return QApplication::palette().color(QPalette::Normal, QPalette::Text); }
 	void resizeEvent(QResizeEvent* ev) override;
+	bool eventFilter(QObject* obj, QEvent* event) override;
 
 Q_SIGNALS:
 	void sliderReleased();
@@ -104,6 +108,9 @@ private:
 	QString currentSongFile;
 	int lastVal;
 	int pollCount;
+	QString tooltipSource;
+	QString tooltipContext;
+	QPointer<QWidget> tooltipWidget;
 };
 
 #endif

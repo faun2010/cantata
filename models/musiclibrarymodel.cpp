@@ -138,10 +138,10 @@ static QString parentData(const MusicLibraryItem* i)
 	while (itm->parentItem()) {
 		if (!itm->parentItem()->data().isEmpty()) {
 			if (MusicLibraryItem::Type_Root == itm->parentItem()->itemType()) {
-				data = "<b>" + itm->parentItem()->data() + "</b><br/>" + data;
+				data = "<b>" + itm->parentItem()->data().toHtmlEscaped() + "</b><br/>" + data;
 			}
 			else {
-				data = itm->parentItem()->data() + "<br/>" + data;
+				data = itm->parentItem()->data().toHtmlEscaped() + "<br/>" + data;
 			}
 		}
 		itm = itm->parentItem();
@@ -200,6 +200,12 @@ QVariant MusicLibraryModel::data(const QModelIndex& index, int role) const
 		}
 		if (MusicLibraryItem::Type_Song == item->itemType()) {
 			return static_cast<MusicLibraryItemSong*>(item)->song().toolTip();
+		}
+		if (MusicLibraryItem::Type_Artist == item->itemType() || MusicLibraryItem::Type_Album == item->itemType()) {
+			const QString label = MusicLibraryItem::Type_Artist == item->itemType() ? tr("Artist") : tr("Album");
+			const QString value = item->displayData(true).toHtmlEscaped();
+			return QStringLiteral("<table><tr><td align=\"right\"><b>%1:&nbsp;&nbsp;</b></td><td>%2</td></tr></table>").arg(label, value)
+			    + QStringLiteral("<br/>") + parentData(item) + data(index, Cantata::Role_SubText).toString();
 		}
 
 		return parentData(item) + (0 == item->childCount() ? item->displayData(true) : (item->displayData(true) + "<br/>" + data(index, Cantata::Role_SubText).toString()));

@@ -45,11 +45,14 @@ public:
 	QString translateLinks(QString text) const override;
 	QStringList getLangs() const override { return getPreferedLangs(); }
 	QString getPrefix(const QString& key) const override { return key.split(QLatin1Char(':')).back(); }
+	void setDisambiguationHint(const QStringList& hint) override { disambiguationHint = hint; }
 
 public Q_SLOTS:
 	void search(const QStringList& query, Mode mode) override;
 
 private:
+	bool hasNamesakeCandidate(const QString& title) const;
+	bool mentionsHint(const QString& page) const;
 	void requestTitles(const QStringList& query, Mode mode, const QString& lang);
 	void getPage(const QStringList& query, Mode mode, const QString& lang);
 
@@ -61,6 +64,11 @@ private:
 	static QStringList preferredLangs;
 	static bool introOnly;
 	QStringList titles;
+	QStringList disambiguationHint;
+	QString lastTitle;
+	int hintRetries = 0;
+	QString hintFallback;
+	QString hintFallbackLang;
 };
 
 #endif

@@ -99,7 +99,27 @@
         </property>
        </spacer>
       </item>
-      <item row="4" column="0">
+      <item row="4" column="0" colspan="3">
+       <widget class="QLabel" name="descriptionLabel">
+        <property name="text">
+         <string>感受一览 (optional, LLM picks the final list from rule matches):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0" colspan="3">
+       <widget class="QPlainTextEdit" name="descriptionEdit">
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>90</height>
+         </size>
+        </property>
+        <property name="placeholderText">
+         <string>Multi-line free description of the mood, scene or taste you want, in any language. Leave empty to disable the LLM filter.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
        <layout class="QFormLayout" name="formLayout">
         <item row="0" column="0">
          <widget class="QLabel" name="ratingRangeLabel_2">
@@ -255,7 +275,7 @@
       </item>
        </layout>
       </item>
-      <item row="6" column="0">
+      <item row="8" column="0">
        <widget class="UrlLabel" name="aboutLabel">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
@@ -268,7 +288,7 @@
         </property>
        </widget>
       </item>
-      <item row="7" column="1" colspan="2">
+      <item row="9" column="1" colspan="2">
        <spacer name="horizontalSpacer">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>

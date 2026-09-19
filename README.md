@@ -6,6 +6,9 @@ Cantata
 Includes work from [fenuks/cantata](https://github.com/fenuks/cantata)
 and the Qt6 PR.
 
+本机中文翻译与艺术家图片增强版：见 [翻译配置](docs/translation.md) 和
+[macOS 私有构建说明](docs/macos-local-build.md)、[Linux 本机构建说明](docs/linux-local-build.md)。
+
 ![ScreenShot](screenshots/mainwindow.png)
 
 

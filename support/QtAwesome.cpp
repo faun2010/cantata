@@ -18,10 +18,10 @@
 #include <QPalette>
 #include <QString>
 
+#include <QSvgRenderer>
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
 #define USE_COLOR_SCHEME
 #include <QStyleHints>
-#include <QSvgRenderer>
 #endif
 #ifdef Q_OS_MAC
 #include "osxstyle.h"

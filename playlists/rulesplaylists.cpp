@@ -59,6 +59,7 @@ const QString RulesPlaylists::constExactKey = QLatin1String("Exact");
 const QString RulesPlaylists::constExcludeKey = QLatin1String("Exclude");
 const QString RulesPlaylists::constOrderKey = QLatin1String("Order");
 const QString RulesPlaylists::constOrderAscendingKey = QLatin1String("OrderAscending");
+const QString RulesPlaylists::constDescriptionKey = QLatin1String("Description");
 const QChar RulesPlaylists::constRangeSep = QLatin1Char('-');
 const QChar RulesPlaylists::constKeyValSep = QLatin1Char(':');
 
@@ -170,7 +171,7 @@ QVariant RulesPlaylists::data(const QModelIndex& index, int role) const
 		return entryList.at(index.row()).name;
 	case Cantata::Role_SubText: {
 		const Entry& e = entryList.at(index.row());
-		return tr("%n Rule(s)", "", e.rules.count()) + (e.haveRating() ? tr(", Rating: %1..%2").arg((double)e.ratingFrom / Song::Rating_Step).arg((double)e.ratingTo / Song::Rating_Step) : QString()) + (isDynamic() ? QString() : (QLatin1String(", ") + orderName(e.order))) + (isDynamic() || Order_Random == e.order ? QString() : (" (" + (e.orderAscending ? tr("Ascending") : tr("Descending")) + ")"));
+		return tr("%n Rule(s)", "", e.rules.count()) + (e.haveRating() ? tr(", Rating: %1..%2").arg((double)e.ratingFrom / Song::Rating_Step).arg((double)e.ratingTo / Song::Rating_Step) : QString()) + (isDynamic() ? QString() : (QLatin1String(", ") + orderName(e.order))) + (isDynamic() || Order_Random == e.order ? QString() : (" (" + (e.orderAscending ? tr("Ascending") : tr("Descending")) + ")")) + (e.description.isEmpty() ? QString() : tr(", LLM filter"));
 	}
 	default:
 		return QVariant();
@@ -223,6 +224,10 @@ bool RulesPlaylists::save(const Entry& e)
 	if (Order_Random != e.order) {
 		str << constOrderKey << constKeyValSep << orderStr(e.order) << '\n'
 			<< constOrderAscendingKey << constKeyValSep << (e.orderAscending ? "true" : "false") << '\n';
+	}
+	if (!e.description.isEmpty()) {
+		// Multi-line free text; base64 keeps the line-based file format intact.
+		str << constDescriptionKey << constKeyValSep << QString::fromLatin1(e.description.toUtf8().toBase64()) << '\n';
 	}
 	for (const Rule& rule : e.rules) {
 		if (!rule.isEmpty()) {
@@ -363,6 +368,9 @@ void RulesPlaylists::loadLocal()
 					}
 					else if (str.startsWith(constMaxAgeKey + constKeyValSep)) {
 						e.maxAge = str.mid(constMaxAgeKey.length() + 1).toUInt();
+					}
+					else if (str.startsWith(constDescriptionKey + constKeyValSep)) {
+						e.description = QString::fromUtf8(QByteArray::fromBase64(str.mid(constDescriptionKey.length() + 1).toLatin1()));
 					}
 					else {
 						for (const QString& k : keys) {

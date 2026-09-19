@@ -75,6 +75,7 @@ private Q_SLOTS:
 
 private:
 	void doSearch() override;
+	void updateSearchView(bool rowsChanged);
 	void controlActions() override;
 
 private:

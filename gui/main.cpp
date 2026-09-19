@@ -52,6 +52,9 @@
 #include "context/ultimatelyricsprovider.h"
 #include "http/httpserver.h"
 #include "network/networkaccessmanager.h"
+#include "network/networkproxyfactory.h"
+#include "context/recordingcovers.h"
+#include "network/translationservice.h"
 #include "streams/streamfetcher.h"
 #include "tags/taghelperiface.h"
 #include "widgets/songdialog.h"
@@ -390,8 +393,20 @@ int main(int argc, char* argv[])
 	}
 
 	if (cmdLineParser.isSet(noNetworkOption)) {
+		// Also disables TranslationService's network access.
 		NetworkAccessManager::disableNetworkAccess();
 	}
+	else {
+		// All QNetworkAccessManager instances, including the translation service,
+		// use this application-level proxy factory from their first request.
+		NetworkProxyFactory::self();
+	}
+
+	// Route translation requests through the shared network access manager
+	// so they pick up the user's proxy configuration, the same as covers
+	// and lyrics do.
+	TranslationService::self()->setNetworkAccessManager(NetworkAccessManager::self());
+	RecordingCovers::self()->setNetworkAccessManager(NetworkAccessManager::self());
 
 // Set the permissions on the config file on Unix - it can contain passwords
 // for internet services so it's important that other users can't read it.

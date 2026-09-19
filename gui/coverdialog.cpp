@@ -518,7 +518,7 @@ void CoverDialog::downloadJobFinished()
 
 				if (temp->open()) {
 					if (!format) {
-						img.save(temp, "PNG");
+						Utils::withoutColorProfile(img).save(temp, "PNG");
 					}
 					else {
 						temp->write(data);

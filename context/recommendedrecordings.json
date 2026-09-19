@@ -1,0 +1,513 @@
+{
+  "version": 1,
+  "generated": "2026-09-15",
+  "works": [
+    {
+      "composer": "Ludwig van Beethoven",
+      "title": "Piano Concerto No. 2 in B-flat major",
+      "catalogue": "Op. 19",
+      "aliases": [
+        "Piano Concerto No.2",
+        "Klavierkonzert Nr. 2"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "Artur Rubinstein",
+          "conductor": "Daniel Barenboim",
+          "ensemble": "",
+          "label": "RCA",
+          "catalogue": "ARL1-4711",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "MusicWeb International (Jonathan Woolf): \"the warmly moulded slow movement has affectionate charm and depends on some internally contrastive material rather more starkly than had been the case in those earlier cycles\"",
+          "reviews": [
+            {
+              "publication": "MusicWeb International",
+              "reviewer": "Jonathan Woolf",
+              "date": "April 2005",
+              "url": "http://www.musicweb-international.com/classrev/2005/Apr05/beethoven_rubinstein_BMG82876658382.htm",
+              "excerpt": "the warmly moulded slow movement has affectionate charm and depends on some internally contrastive material rather more starkly than had been the case in those earlier cycles"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "composer": "Ludwig van Beethoven",
+      "title": "Piano Concerto No. 4 in G major",
+      "catalogue": "Op. 58",
+      "aliases": [
+        "Piano Concerto No.4",
+        "Klavierkonzert Nr. 4"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "Glenn Gould",
+          "conductor": "Leonard Bernstein",
+          "ensemble": "",
+          "label": "Columbia/Impex",
+          "catalogue": "6011",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "Impex Records (product page) (Impex Records (publisher/label text)): \"Gould is often erratic, but never boring, and his Beethoven Fourth brings a fresh light to this favorite composition\"",
+          "reviews": [
+            {
+              "publication": "Impex Records (product page)",
+              "reviewer": "Impex Records (publisher/label text)",
+              "date": "n.d.",
+              "url": "https://impexrecords.com/beethoven-piano-concerto-no-4-180-gram-lp/",
+              "excerpt": "Gould is often erratic, but never boring, and his Beethoven Fourth brings a fresh light to this favorite composition"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "composer": "Ludwig van Beethoven",
+      "title": "Piano Concerto No. 5 in E-flat major \"Emperor\"",
+      "catalogue": "Op. 73",
+      "aliases": [
+        "Piano Concerto No.5",
+        "Emperor Concerto",
+        "Klavierkonzert Nr. 5"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "Clifford Curzon",
+          "conductor": "Hans Knappertsbusch",
+          "ensemble": "Vienna Philharmonic",
+          "label": "Decca",
+          "catalogue": "SLX 2002",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "MusicWeb International (Christopher Howell): \"Knappertsbusch directs the outer movements with a proud splendour that never becomes heavy\"",
+          "reviews": [
+            {
+              "publication": "MusicWeb International",
+              "reviewer": "Christopher Howell",
+              "date": "December 2000",
+              "url": "http://www.musicweb-international.com/classrev/2000/dec00/Beethoven_Curzon.htm",
+              "excerpt": "Knappertsbusch directs the outer movements with a proud splendour that never becomes heavy"
+            }
+          ]
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PGB92",
+          "rating": "Rosette",
+          "soloist": "Stephen (Bishop-)Kovacevich",
+          "conductor": "",
+          "ensemble": "Australian Chamber Orchestra",
+          "label": "EMI",
+          "catalogue": "CD-EMX 2184",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Grosse Fuge, Op. 133 (arr.)",
+          "comment": "unsurpassed as an interpreter of this most magnificant of concertos; first choice"
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG90",
+          "rating": "Rosette",
+          "soloist": "Melvyn Tan",
+          "conductor": "Roger Norrington",
+          "ensemble": "London Classical Players",
+          "label": "EMI",
+          "catalogue": "CDC7 49965-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Choral Fantasia, Op. 80; period instruments",
+          "comment": "original insruments contrast Bishop-Kovacevich but every bit as stimulating | MusicWeb International (Dominy Clements): \"Tan's agility and effortless technical accuracy is constantly in evidence, and one can easily imagine the breathtaking response these pieces would have drawn from contemporary crowds\"",
+          "reviews": [
+            {
+              "publication": "MusicWeb International",
+              "reviewer": "Dominy Clements",
+              "date": "June 2008",
+              "url": "http://www.musicweb-international.com/classrev/2008/june08/Beethoven_Tan_5220142.htm",
+              "excerpt": "Tan's agility and effortless technical accuracy is constantly in evidence, and one can easily imagine the breathtaking response these pieces would have drawn from contemporary crowds"
+            }
+          ]
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG90",
+          "rating": "Rosette",
+          "soloist": "Stephen Bishop-Kovacevich",
+          "conductor": "Colin Davis",
+          "ensemble": "London Symphony Orchestra",
+          "label": "Philips",
+          "catalogue": "422 482-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Piano Sonata No. 30, Op. 109",
+          "comment": "one of the most deeply satisfying versions | Classical Source (Colin Anderson): \"The LSO 'Emperor' is suitably regal and at its heart is a spacious and magical slow movement, which unfortunately discolours a little due to over-zealous re-mastering\"",
+          "reviews": [
+            {
+              "publication": "Classical Source",
+              "reviewer": "Colin Anderson",
+              "date": "December 2015",
+              "url": "https://www.classicalsource.com/cd/stephen-kovacevich-the-complete-philips-recordings-bartok-beethoven-brahms-mozart-decca/",
+              "excerpt": "The LSO 'Emperor' is suitably regal and at its heart is a spacious and magical slow movement, which unfortunately discolours a little due to over-zealous re-mastering"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "composer": "Modest Mussorgsky",
+      "title": "Pictures at an Exhibition",
+      "catalogue": "",
+      "aliases": [
+        "Bilder einer Ausstellung",
+        "Kartinki s vystavki"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG95",
+          "rating": "Rosette",
+          "version": "orchestral (orch. Ravel)",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "Chicago Symphony Orchestra",
+          "label": "RCA",
+          "catalogue": "09026 61401-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "vintage stereo at its most impressive; evocative approach"
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG91",
+          "rating": "Rosette",
+          "version": "piano (original)",
+          "soloist": "Mikhail Pletnev",
+          "conductor": "",
+          "ensemble": "",
+          "label": "Virgin Classics",
+          "catalogue": "VC7 59611-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "remarkable effects of color and pedalling; oustanding"
+        }
+      ]
+    },
+    {
+      "composer": "Richard Strauss",
+      "title": "Also sprach Zarathustra",
+      "catalogue": "Op. 30",
+      "aliases": [
+        "Thus Spoke Zarathustra"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "",
+          "label": "RCA/Analogue Productions",
+          "catalogue": "LSC-1806",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "Audiophilia (Anthony Kershaw): \"The mid '50s Chicago Symphony had few equals, and Reiner's iron fist controls them to perfection\"",
+          "reviews": [
+            {
+              "publication": "Audiophilia",
+              "reviewer": "Anthony Kershaw",
+              "date": "2026-03-14",
+              "url": "https://www.audiophilia.com/reviews/2026/3/10/richard-strauss-also-sprach-zarathustrafritz-reiner-conducting-the-chicago-symphony-orchestraanalogue-productions-rca-living-stereo-45-rpm-series-2026",
+              "excerpt": "The mid '50s Chicago Symphony had few equals, and Reiner's iron fist controls them to perfection"
+            }
+          ]
+        },
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "",
+          "conductor": "Zubin Mehta",
+          "ensemble": "Los Angeles Philharmonic",
+          "label": "Original Recordings Group",
+          "catalogue": "ORG-159-45",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "note": "45rpm, 2LP reissue",
+          "comment": ""
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "Chicago Symphony Orchestra",
+          "label": "RCA",
+          "catalogue": "09026 61494-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Ein Heldenleben on same disc",
+          "comment": "ASZ ranks alonside the very best ever committed to disc"
+        }
+      ]
+    },
+    {
+      "composer": "Richard Strauss",
+      "title": "Ein Heldenleben",
+      "catalogue": "Op. 40",
+      "aliases": [
+        "A Hero's Life"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "Chicago Symphony Orchestra",
+          "label": "RCA",
+          "catalogue": "09026 61494-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Also sprach Zarathustra on same disc",
+          "comment": "ASZ ranks alonside the very best ever committed to disc"
+        }
+      ]
+    },
+    {
+      "composer": "Richard Strauss",
+      "title": "Till Eulenspiegels lustige Streiche",
+      "catalogue": "Op. 28",
+      "aliases": [
+        "Till Eulenspiegel's Merry Pranks"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "",
+          "label": "RCA/Analogue Productions",
+          "catalogue": "AAPC 2077",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "Acoustic Sounds / Analogue Productions (product page, quoting High Fidelity magazine) (High Fidelity (vintage magazine, quoted by the label)): \"as fine an example as we have of Reiner's preeminent place among the living disciples of Richard Strauss\"",
+          "reviews": [
+            {
+              "publication": "Acoustic Sounds / Analogue Productions (product page, quoting High Fidelity magazine)",
+              "reviewer": "High Fidelity (vintage magazine, quoted by the label)",
+              "date": "n.d. (original review 1959; page text current)",
+              "url": "https://store.acousticsounds.com/d/110615/Fritz_Reiner-Strauss_Till_EulenspiegelDeath_And_Transfiguration-200_Gram_Vinyl_Record",
+              "excerpt": "as fine an example as we have of Reiner's preeminent place among the living disciples of Richard Strauss"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "composer": "Richard Strauss",
+      "title": "Tod und Verklärung",
+      "catalogue": "Op. 24",
+      "aliases": [
+        "Death and Transfiguration"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG90",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Herbert von Karajan",
+          "ensemble": "Berlin Philharmonic",
+          "label": "Deutsche Grammophon",
+          "catalogue": "410 892-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "coupled with Metamorphosen for 23 solo strings",
+          "comment": "electrifying"
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "George Szell",
+          "ensemble": "Cleveland Orchestra",
+          "label": "Sony",
+          "catalogue": "SBK 53511",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "note": "reissue disc also couples Sinfonia Domestica and Salome's Dance of the 7 Veils (Ormandy/Philadelphia Orchestra)",
+          "comment": "tremendous electricity and orchestral bravura; D&T still unsurpassed"
+        }
+      ]
+    },
+    {
+      "composer": "Johann Sebastian Bach",
+      "title": "Brandenburg Concertos",
+      "catalogue": "BWV 1046-1051",
+      "aliases": [
+        "Brandenburgische Konzerte",
+        "Brandenburg Concerto"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "",
+          "conductor": "Otto Klemperer",
+          "ensemble": "Philharmonia Orchestra",
+          "label": "Columbia",
+          "catalogue": "SAX 2408 (9LPs)",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "",
+          "reviews": []
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Adolf Busch",
+          "ensemble": "Busch Chamber Players",
+          "label": "EMI",
+          "catalogue": "(M) CHS7 64047-2 (3)",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "In mono, on modern instruments; greater authenticity of spirit than many rigid modern performances. Coupled with Orchestral Suites 1-4.",
+          "reviews": []
+        }
+      ]
+    },
+    {
+      "composer": "Johann Sebastian Bach",
+      "title": "Orchestral Suites",
+      "catalogue": "BWV 1066-1069",
+      "aliases": [
+        "Orchestersuiten",
+        "Orchestral Suites",
+        "Ouvertüren",
+        "Suites for Orchestra",
+        "Suites pour orchestre"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Adolf Busch",
+          "ensemble": "Busch Chamber Players",
+          "label": "EMI",
+          "catalogue": "(M) CHS7 64047-2 (3)",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "In mono, on modern instruments; greater authenticity of spirit than many rigid modern performances. Covers Orchestral Suites 1-4 only, not the Triple Concerto BWV 1044.",
+          "reviews": []
+        }
+      ]
+    },
+    {
+      "composer": "Johann Sebastian Bach",
+      "title": "Passacaglia and Fugue in C minor",
+      "catalogue": "BWV 582",
+      "aliases": [
+        "Passacaglia and Fugue",
+        "Passacaglia und Fuge"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "Simon Preston, organ",
+          "conductor": "",
+          "ensemble": "",
+          "label": "Deutsche Grammophon",
+          "catalogue": "435 381-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "Magnificent demonstration of the splendour and power of Bach's more ambitious organ statements; one of the very finest Bach organ collections of the digital CD era. Includes Passacaglia BWV 582; does not include the Dorian Toccata BWV 538 or the organ concertos BWV 592-597.",
+          "reviews": []
+        }
+      ]
+    },
+    {
+      "composer": "George Frideric Handel",
+      "title": "Messiah",
+      "catalogue": "HWV 56",
+      "aliases": [
+        "Der Messias"
+      ],
+      "recordings": [
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG94",
+          "rating": "Rosette",
+          "soloist": "Jennifer Vyvyan, Monica Sinclair, Jon Vickers, Giorgio Tozzi",
+          "conductor": "Thomas Beecham",
+          "ensemble": "Royal Philharmonic Orchestra and Chorus",
+          "label": "RCA",
+          "catalogue": "(M) GD 61266-20 (3)",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "Its sense of exultant glory in the riches of Handel's masterpiece is life-enhancing.",
+          "reviews": []
+        }
+      ]
+    },
+    {
+      "composer": "Pyotr Ilyich Tchaikovsky",
+      "title": "1812 Overture",
+      "catalogue": "Op. 49",
+      "aliases": [
+        "Ouverture solennelle 1812"
+      ],
+      "recordings": [
+        {
+          "guide": "TAS Super LP List",
+          "edition": "2023",
+          "rating": "Super LP",
+          "soloist": "",
+          "conductor": "Fritz Reiner",
+          "ensemble": "Chicago Symphony Orchestra",
+          "label": "RCA / Analogue Productions",
+          "catalogue": "AAPC 2241-P",
+          "year": "",
+          "source": "https://www.theabsolutesound.com/articles/2023-tas-super-lp-list/",
+          "comment": "Listed under \"Tchaikovsky, Mendelssohn, et al.: 1812 Overture, etc.\"",
+          "reviews": []
+        },
+        {
+          "guide": "Penguin Guide",
+          "edition": "PG96",
+          "rating": "Rosette",
+          "soloist": "",
+          "conductor": "Antal Dorati",
+          "ensemble": "London Symphony Orchestra",
+          "label": "Mercury",
+          "catalogue": "(M) 434 360-2",
+          "year": "",
+          "source": "https://users.ece.utexas.edu/~perry/fun/music/pgr-comp.html",
+          "comment": "Most famous of all Mercury records; the spectacle is quite extraordinary. Coupled with Capriccio Italien.",
+          "reviews": []
+        }
+      ]
+    }
+  ]
+}

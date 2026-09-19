@@ -120,6 +120,7 @@ StreamsBrowsePage::StreamsBrowsePage(QWidget* p)
 
 	proxy.setSourceModel(StreamsModel::self());
 	view->setModel(&proxy);
+	connect(&proxy, &ProxyModel::filterUpdatedAsync, this, &StreamsBrowsePage::doSearch);
 	view->setDeleteAction(StdActions::self()->removeAction);
 	view->setSearchResetLevel(1);
 	view->alwaysShowHeader();

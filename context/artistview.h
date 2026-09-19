@@ -27,6 +27,7 @@
 #include "db/librarydb.h"
 #include "mpd-interface/song.h"
 #include "view.h"
+#include "biographytranslation.h"
 #include <QMap>
 
 class ComboBox;
@@ -37,6 +38,7 @@ class QImage;
 class QUrl;
 class ContextEngine;
 class Action;
+class QAction;
 
 class ArtistView : public View {
 	Q_OBJECT
@@ -69,6 +71,7 @@ private Q_SLOTS:
 	void show(const QUrl& url);
 	void clearCache();
 	void searchResponse(const QString& resp, const QString& lang);
+	void biographyTranslationReady(const QString& source, const QString& context, const QString& translation);
 
 private:
 	void loadBio();
@@ -80,9 +83,14 @@ private:
 
 private:
 	Action* refreshAction;
+	QAction* originalTextAction;
 	ContextEngine* engine;
 	QString pic;
 	QString biography;
+	QString originalBiography;
+	QString biographySource;
+	QString biographyTranslationContext;
+	BiographyTranslation::Prepared biographyTranslation;
 	QString similarArtists;
 	NetworkJob* currentSimilarJob;
 	QString provider;

@@ -24,6 +24,8 @@
 #include "networkaccessmanager.h"
 #include "config.h"
 #include "gui/settings.h"
+#include "context/recordingcovers.h"
+#include "network/translationservice.h"
 #include "networkproxyfactory.h"
 #include "support/globalstatic.h"
 #include <QCoreApplication>
@@ -44,6 +46,8 @@ static bool networkAccessEnabled = true;
 void NetworkAccessManager::disableNetworkAccess()
 {
 	networkAccessEnabled = false;
+	TranslationService::disableNetworkAccess();
+	RecordingCovers::disableNetworkAccess();
 }
 
 static const int constMaxRedirects = 5;
