@@ -471,6 +471,7 @@ target_sources(
         context/workdossier.cpp
         context/recommendedrecordings.cpp
         context/recordingcovers.cpp
+        context/recordingcoverfetcher.cpp
         context/songview.cpp
         context/contextengine.cpp
         context/wikipediaengine.cpp

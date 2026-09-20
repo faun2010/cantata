@@ -63,9 +63,12 @@ private Q_SLOTS:
 	void lastFmResponse(const QString& html, const QString& lang);
 
 private:
+	void emitAlbumResultIfReady();
+
 	QMap<int, Response> responses;
 	WikipediaEngine* wiki;
 	LastFmEngine* lastfm;
+	Mode searchMode;
 };
 
 #endif

@@ -11,6 +11,17 @@
 
 #include "context/recordingcovers.h"
 #include <QTest>
+#include <QBuffer>
+#include <QImage>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QSignalSpy>
+#include <QTemporaryDir>
+#include <QTimer>
+#include <cstring>
 
 using RC = RecordingCovers;
 
@@ -67,12 +78,129 @@ const QByteArray frontFlagResponse =
     "{\"id\":\"has-front\",\"score\":50,\"label-info\":[{\"catalog-number\":\"ABC\"}],\"cover-art-archive\":{\"front\":true}}"
     "]}";
 
+class FixtureReply : public QNetworkReply {
+public:
+	FixtureReply(const QNetworkRequest& request, const QByteArray& body, int status, QObject* parent)
+	    : QNetworkReply(parent), data(body)
+	{
+		setRequest(request);
+		setUrl(request.url());
+		setAttribute(QNetworkRequest::HttpStatusCodeAttribute, status);
+		if (status >= 400) setError(status == 404 ? ContentNotFoundError : ServiceUnavailableError, "fixture failure");
+		open(QIODevice::ReadOnly);
+		QTimer::singleShot(0, this, [this]() { setFinished(true); emit readyRead(); emit finished(); });
+	}
+	void abort() override {}
+	qint64 bytesAvailable() const override { return data.size() - offset + QNetworkReply::bytesAvailable(); }
+protected:
+	qint64 readData(char* target, qint64 max) override {
+		const qint64 count = qMin(max, qint64(data.size()) - offset);
+		if (count <= 0) return -1;
+		std::memcpy(target, data.constData() + offset, size_t(count)); offset += count; return count;
+	}
+private:
+	QByteArray data;
+	qint64 offset = 0;
+};
+
+class FixtureNetwork : public QNetworkAccessManager {
+public:
+	QList<QPair<int, QByteArray>> responses;
+	QList<QUrl> requests;
+protected:
+	QNetworkReply* createRequest(Operation, const QNetworkRequest& request, QIODevice*) override {
+		requests << request.url();
+		const auto response = responses.isEmpty() ? qMakePair(500, QByteArray()) : responses.takeFirst();
+		return new FixtureReply(request, response.second, response.first, this);
+	}
+};
+
+QByteArray workResponse()
+{
+	QJsonObject release{{"id", "matched-release"}, {"title", "Symphonies Nos. 5 & 7"}, {"status", "Official"},
+	                    {"release-group", QJsonObject{{"id", "matched-group"}}},
+	                    {"artist-credit", QJsonArray{QJsonObject{{"name", "Ludwig van Beethoven"}}, QJsonObject{{"name", "Carlos Kleiber"}}}},
+	                    {"label-info", QJsonArray{QJsonObject{{"label", QJsonObject{{"name", "Deutsche Grammophon"}}}}}}};
+	return QJsonDocument(QJsonObject{{"releases", QJsonArray{release}}}).toJson();
+}
+
 }// namespace
 
 class RecordingCoversTest : public QObject {
 	Q_OBJECT
 
 private Q_SLOTS:
+
+	void matchesWorkAndEveryPerformer()
+	{
+		auto releases = RC::parseReleaseSearchResponse(workResponse());
+		auto match = [&](const QString& work, const QString& performers, const QString& composer = "Ludwig van Beethoven") {
+			return RC::matchingWorkReleases(releases, composer, work, performers, "Deutsche Grammophon", "1975");
+		};
+		QCOMPARE(match("Symphony No.5", "Carlos Kleiber").size(), 1);
+		QVERIFY(match("Symphony No.9", "Carlos Kleiber").isEmpty());
+		QVERIFY(match("Symphony No.5", "Erich Kleiber").isEmpty());
+		QVERIFY(match("Symphony No.5", "Carlos Kleiber, Wrong Orchestra").isEmpty());
+		QVERIFY(match("Symphony No.5", "Carlos Kleiber", "Franz Schubert").isEmpty());
+		releases.first().disambiguation = "1982 recording";
+		QVERIFY(match("Symphony No.5", "Carlos Kleiber").isEmpty());
+		releases.first().disambiguation.clear();
+		releases << releases.first();
+		releases.last().releaseGroupId = "other-session";
+		QVERIFY(match("Symphony No.5", "Carlos Kleiber").isEmpty());
+		releases.last().disambiguation = "1975 recording";
+		QCOMPARE(match("Symphony No.5", "Carlos Kleiber").first().releaseGroupId, QString("other-session"));
+	}
+
+	void requiresWorkContextForFallback()
+	{
+		QVERIFY(RC::buildWorkQuery("", "Symphony No.5", "Carlos Kleiber").isEmpty());
+		QVERIFY(RC::buildWorkQuery("Beethoven", "", "Carlos Kleiber").isEmpty());
+		QVERIFY(RC::buildWorkQuery("Beethoven", "Symphony No.5", "").isEmpty());
+		QCOMPARE(RC::buildWorkQuery("Carl Maria von Weber", "Der Freischütz", "Joseph Keilberth"),
+		         QString("artist:\"Weber\" AND artist:\"Keilberth\" AND release:\"Freischütz\""));
+	}
+
+	void downloadsWithoutCatalogueAndCachesSource()
+	{
+		QTemporaryDir cache;
+		FixtureNetwork network;
+		QImage cover(100, 150, QImage::Format_RGB32); cover.fill(Qt::red);
+		QByteArray jpeg; QBuffer buffer(&jpeg); buffer.open(QIODevice::WriteOnly); cover.save(&buffer, "JPEG");
+		network.responses = {{200, workResponse()}, {200, jpeg}};
+		RC covers(nullptr, cache.path()); covers.setNetworkAccessManager(&network);
+		QSignalSpy ready(&covers, &RC::coverReady);
+		covers.request("work-5", "Carlos Kleiber", "Deutsche Grammophon", "", "1975", "Ludwig van Beethoven", "Symphony No.5");
+		QTRY_COMPARE(ready.size(), 1);
+		QVERIFY(!QImage(covers.cachedCover("work-5")).isNull());
+		QCOMPARE(covers.cachedSourceUrl("work-5"), QString("https://musicbrainz.org/release/matched-release"));
+		QCOMPARE(network.requests.size(), 2);
+		RC reopened(nullptr, cache.path()); reopened.setNetworkAccessManager(&network);
+		reopened.request("work-5", "Carlos Kleiber", "Deutsche Grammophon", "", "1975", "Ludwig van Beethoven", "Symphony No.5");
+		QVERIFY(!reopened.cachedCover("work-5").isEmpty());
+		QCOMPARE(network.requests.size(), 2);
+	}
+
+	void rejectsNonImageAndRetriesTransientFailureSoon()
+	{
+		QTemporaryDir cache;
+		FixtureNetwork network;
+		network.responses = {{200, workResponse()}, {200, "<html>error</html>"}};
+		RC covers(nullptr, cache.path()); covers.setNetworkAccessManager(&network);
+		QSignalSpy ready(&covers, &RC::coverReady);
+		covers.request("bad-image", "Carlos Kleiber", "", "", "", "Ludwig van Beethoven", "Symphony No.5");
+		QTRY_VERIFY(!QDir(cache.path()).entryList({"*.none"}, QDir::Files).isEmpty());
+		QVERIFY(covers.cachedCover("bad-image").isEmpty());
+		QCOMPARE(ready.size(), 0);
+		const QString marker = QDir(cache.path()).filePath(QDir(cache.path()).entryList({"*.none"}, QDir::Files).first());
+		QFile file(marker); QVERIFY(file.open(QIODevice::ReadWrite));
+		QCOMPARE(file.readAll(), QByteArray("retry"));
+		QVERIFY(file.setFileTime(QDateTime::currentDateTime().addSecs(-301), QFileDevice::FileModificationTime));
+		file.close();
+		network.responses = {{200, QByteArray("{\"releases\":[]}")}};
+		covers.request("bad-image", "Carlos Kleiber", "", "", "", "Ludwig van Beethoven", "Symphony No.5");
+		QTRY_COMPARE(network.requests.size(), 3);
+	}
 
 	void normalisesCatalogueNumbers()
 	{

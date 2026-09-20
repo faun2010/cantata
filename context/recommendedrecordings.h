@@ -118,10 +118,10 @@ QList<Recording> parseAiRecordings(const QString& response);
 
 // A stable key identifying a recording for cover art lookup/caching (see
 // context/recordingcovers.h), built from its label, catalogue number and
-// performers - the fields least likely to vary between mentions of the same
-// physical release. Case/diacritics-insensitive and whitespace-normalised,
-// so cosmetic differences do not change the key.
-QString recordingCoverKey(const QString& performers, const QString& label, const QString& catalogue);
+// performers, plus composer/work/year when available. Including the work is
+// essential for recommendations without a catalogue number. Text fields are
+// case/diacritics-insensitive and whitespace-normalised.
+QString recordingCoverKey(const QString& performers, const QString& label, const QString& catalogue, const QString& composer = QString(), const QString& work = QString(), const QString& year = QString());
 
 // " \xc2\xb7 " (U+00B7 MIDDLE DOT) and " \xe2\x80\x94 " (U+2014 EM DASH)
 // padded with a single space either side - built from QChar code points

@@ -16,6 +16,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -38,7 +39,7 @@ static const char musicBrainzUserAgent[] = "Cantata-RecordingCovers/1.0 ( https:
 static const qint64 musicBrainzMinIntervalMs = 1100;
 // How long a negative ("no cover found") result is trusted before a fresh
 // lookup is attempted again.
-static const qint64 negativeResultTtlMs = qint64(30) * 24 * 3600 * 1000;
+static const qint64 negativeResultTtlMs = qint64(24) * 3600 * 1000;
 
 namespace {
 
@@ -54,13 +55,56 @@ QString sha1Hex(const QString& value)
 	return QString::fromLatin1(QCryptographicHash::hash(value.toUtf8(), QCryptographicHash::Sha1).toHex());
 }
 
+QStringList words(QString value)
+{
+	value = value.normalized(QString::NormalizationForm_D).toCaseFolded();
+	value.remove(QRegularExpression(QStringLiteral("[\\p{M}]")));
+	return value.split(QRegularExpression(QStringLiteral("[^\\p{L}\\p{N}]+")), Qt::SkipEmptyParts);
+}
+
+QStringList workWords(QString value)
+{
+	// Recording metadata may omit the key, opus number, and number marker.
+	// Preserve the work's own number: Symphony 5 must never match Symphony 7.
+	value.remove(QRegularExpression(QStringLiteral("\\b(?:op|bwv|kv?|hob|rv|woo)\\.?\\s*[0-9]+(?:[.:][0-9]+)*"), QRegularExpression::CaseInsensitiveOption));
+	const QSet<QString> ignored = {"the", "a", "an", "der", "die", "das", "in", "no", "nos", "nr", "major", "minor", "flat", "sharp", "b", "c", "d", "e", "f", "g"};
+	QStringList result;
+	for (QString word : words(value)) {
+		if (ignored.contains(word)) continue;
+		if (word == "symphonies") word = "symphony";
+		else if (word == "concertos") word = "concerto";
+		else if (word == "sonatas") word = "sonata";
+		else if (word == "quartets") word = "quartet";
+		result << word;
+	}
+	return result;
+}
+
+bool includesWords(const QStringList& actual, const QStringList& wanted)
+{
+	if (wanted.isEmpty()) return false;
+	for (const QString& word : wanted) if (!actual.contains(word)) return false;
+	return true;
+}
+
+bool credited(const QStringList& artists, const QString& wanted)
+{
+	for (const QString& artist : artists) if (includesWords(words(artist), words(wanted))) return true;
+	return false;
+}
+
+QStringList performerNames(const QString& performers)
+{
+	return performers.split(QRegularExpression(QStringLiteral("\\s*[,;/·]\\s*")), Qt::SkipEmptyParts);
+}
+
 }// namespace
 
 GLOBAL_STATIC(RecordingCovers, recordingCoversInstance)
 
 RecordingCovers::RecordingCovers(QObject* parent, const QString& cacheDirectory)
     : QObject(parent)
-    , cacheDir(cacheDirectory.isEmpty() ? QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).filePath(QLatin1String("recording-covers")) : cacheDirectory)
+    , cacheDir(cacheDirectory.isEmpty() ? QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).filePath(QLatin1String("recording-covers-v2")) : cacheDirectory)
     , network(new QNetworkAccessManager(this))
 {
 	// Cover Art Archive redirects release/<mbid>/front-250 to an
@@ -78,6 +122,11 @@ static bool recordingCoversNetworkAccessEnabled = true;
 void RecordingCovers::disableNetworkAccess()
 {
 	recordingCoversNetworkAccessEnabled = false;
+}
+
+bool RecordingCovers::networkAccessEnabled()
+{
+	return recordingCoversNetworkAccessEnabled;
 }
 
 void RecordingCovers::setNetworkAccessManager(QNetworkAccessManager* manager)
@@ -104,7 +153,9 @@ bool RecordingCovers::hasFreshNegativeMarker(const QString& key) const
 {
 	const QFileInfo info(negativeMarkerPath(key));
 	if (!info.exists()) return false;
-	return info.lastModified().msecsTo(QDateTime::currentDateTime()) < negativeResultTtlMs;
+	QFile marker(info.filePath());
+	const bool transient = marker.open(QIODevice::ReadOnly) && marker.readAll() == "retry";
+	return info.lastModified().msecsTo(QDateTime::currentDateTime()) < (transient ? 5 * 60 * 1000 : negativeResultTtlMs);
 }
 
 QString RecordingCovers::findExistingCoverFile(const QString& key) const
@@ -114,6 +165,13 @@ QString RecordingCovers::findExistingCoverFile(const QString& key) const
 		if (QFile::exists(path)) return path;
 	}
 	return QString();
+}
+
+QString RecordingCovers::cachedSourceUrl(const QString& key) const
+{
+	QFile file(cacheFilePath(key, QLatin1String("json")));
+	if (!file.open(QIODevice::ReadOnly)) return QString();
+	return QJsonDocument::fromJson(file.readAll()).object().value(QLatin1String("source")).toString();
 }
 
 QString RecordingCovers::cachedCover(const QString& key) const
@@ -128,16 +186,16 @@ QString RecordingCovers::cachedCover(const QString& key) const
 	return path;
 }
 
-void RecordingCovers::request(const QString& key, const QString& performers, const QString& label, const QString& catalogue, const QString& year)
+void RecordingCovers::request(const QString& key, const QString& performers, const QString& label, const QString& catalogue, const QString& year, const QString& composer, const QString& work)
 {
 	if (key.isEmpty()) return;
-	if (!cachedCover(key).isEmpty()) return;
-	if (!recordingCoversNetworkAccessEnabled) return;
+	if (!cachedCover(key).isEmpty()) { emit requestFinished(key, QStringLiteral("cached")); return; }
+	if (!recordingCoversNetworkAccessEnabled) { emit requestFinished(key, QStringLiteral("disabled")); return; }
 	if (queuedKeys.contains(key)) return;
-	if (hasFreshNegativeMarker(key)) return;
+	if (hasFreshNegativeMarker(key)) { emit requestFinished(key, QStringLiteral("deferred")); return; }
 
 	queuedKeys.insert(key);
-	pendingQueue.enqueue({key, performers, label, catalogue, year});
+	pendingQueue.enqueue({key, performers, label, catalogue, year, composer, work});
 	processQueue();
 }
 
@@ -148,18 +206,46 @@ void RecordingCovers::processQueue()
 	busy = true;
 	current = pendingQueue.dequeue();
 	chosenRelease = ReleaseCandidate();
+	remainingReleases.clear();
+	workSearchTried = false;
+	transientFailure = false;
+	resultStatus.clear();
 
 	const QString query = buildCatalogueQuery(current.catalogue, current.label);
-	if (!query.isEmpty()) {
+	if (!current.catalogue.trimmed().isEmpty() && !query.isEmpty()) {
 		stage = Stage::CatalogueSearch;
 		runMusicBrainzSearch(query);
 		return;
 	}
 
-	// Without a catalogue number there is nothing that identifies the exact
-	// release; an artist/label search picks unrelated releases by the same
-	// performer, and a wrong cover is worse than none.
-	finishNegative();
+	searchByWork();
+}
+
+void RecordingCovers::searchByWork()
+{
+	if (workSearchTried) {
+		finishNegative(transientFailure);
+		return;
+	}
+	workSearchTried = true;
+	const QString query = buildWorkQuery(current.composer, current.work, current.performers);
+	if (query.isEmpty()) {
+		finishNegative(transientFailure);
+		return;
+	}
+	stage = Stage::WorkSearch;
+	runMusicBrainzSearch(query);
+}
+
+void RecordingCovers::fetchNextRelease()
+{
+	if (remainingReleases.isEmpty()) {
+		searchByWork();
+		return;
+	}
+	chosenRelease = remainingReleases.takeFirst();
+	stage = Stage::ReleaseCover;
+	fetchCoverArt(QUrl(QStringLiteral("https://coverartarchive.org/release/%1/front-250").arg(chosenRelease.id)));
 }
 
 void RecordingCovers::runMusicBrainzSearch(const QString& query)
@@ -182,11 +268,13 @@ void RecordingCovers::sendMusicBrainzSearch(const QString& query)
 	QUrlQuery urlQuery;
 	urlQuery.addQueryItem(QStringLiteral("query"), query);
 	urlQuery.addQueryItem(QStringLiteral("fmt"), QStringLiteral("json"));
-	urlQuery.addQueryItem(QStringLiteral("limit"), QStringLiteral("10"));
+	urlQuery.addQueryItem(QStringLiteral("limit"), QStringLiteral("30"));
 	url.setQuery(urlQuery);
 
 	QNetworkRequest request(url);
 	request.setRawHeader("User-Agent", musicBrainzUserAgent);
+	request.setTransferTimeout(15000);
+	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 	QNetworkReply* reply = network->get(request);
 	connect(reply, &QNetworkReply::finished, this, [this, reply]() { handleMusicBrainzReply(reply); });
 }
@@ -195,29 +283,36 @@ void RecordingCovers::handleMusicBrainzReply(QNetworkReply* reply)
 {
 	reply->deleteLater();
 
-	const QNetworkReply::NetworkError error = reply->error();
-	const QByteArray body = QNetworkReply::NoError == error ? reply->readAll() : QByteArray();
+	if (reply->error() != QNetworkReply::NoError) {
+		finishNegative(true);
+		return;
+	}
+	QJsonParseError error;
+	const QByteArray body = reply->readAll();
+	const auto document = QJsonDocument::fromJson(body, &error);
+	if (error.error != QJsonParseError::NoError || !document.isObject() || !document.object().value("releases").isArray()) {
+		finishNegative(true);
+		return;
+	}
 	const QList<ReleaseCandidate> candidates = parseReleaseSearchResponse(body);
-
-	if (candidates.isEmpty()) {
-		finishNegative();
-		return;
+	if (stage == Stage::CatalogueSearch) {
+		const ReleaseCandidate exact = selectBestRelease(candidates, normaliseCatalogueNumber(current.catalogue));
+		if (!exact.id.isEmpty()) remainingReleases << exact;
 	}
-
-	chosenRelease = selectBestRelease(candidates, normaliseCatalogueNumber(current.catalogue));
-	if (chosenRelease.id.isEmpty()) {
-		finishNegative();
-		return;
+	else {
+		remainingReleases = matchingWorkReleases(candidates, current.composer, current.work, current.performers, current.label, current.year);
+		// Bound the amount of cover probing for one recommendation.
+		while (remainingReleases.size() > 3) remainingReleases.removeLast();
 	}
-
-	stage = Stage::ReleaseCover;
-	fetchCoverArt(QUrl(QStringLiteral("https://coverartarchive.org/release/%1/front-250").arg(chosenRelease.id)));
+	fetchNextRelease();
 }
 
 void RecordingCovers::fetchCoverArt(const QUrl& url)
 {
 	QNetworkRequest request(url);
 	request.setRawHeader("User-Agent", musicBrainzUserAgent);
+	request.setTransferTimeout(15000);
+	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 	QNetworkReply* reply = network->get(request);
 	connect(reply, &QNetworkReply::finished, this, [this, reply]() { handleCoverArtReply(reply); });
 }
@@ -227,44 +322,50 @@ void RecordingCovers::handleCoverArtReply(QNetworkReply* reply)
 	reply->deleteLater();
 
 	if (QNetworkReply::NoError == reply->error()) {
-		const QByteArray data = reply->readAll();
-		if (!data.isEmpty()) {
-			const QString contentType = reply->header(QNetworkRequest::ContentTypeHeader).toString();
-			saveImageAndFinish(data, contentType);
-			return;
-		}
+		if (saveImageAndFinish(reply->readAll())) return;
+		transientFailure = true;
+	}
+	else if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() != 404) {
+		transientFailure = true;
 	}
 
-	if (Stage::ReleaseCover == stage && !chosenRelease.releaseGroupId.isEmpty()) {
-		stage = Stage::ReleaseGroupCover;
-		fetchCoverArt(QUrl(QStringLiteral("https://coverartarchive.org/release-group/%1/front-250").arg(chosenRelease.releaseGroupId)));
-		return;
-	}
-
-	finishNegative();
+	// Use only verified release candidates. A release-group cover can be a
+	// different edition from the source link shown beside the thumbnail.
+	fetchNextRelease();
 }
 
-void RecordingCovers::saveImageAndFinish(const QByteArray& data, const QString& contentType)
+bool RecordingCovers::saveImageAndFinish(const QByteArray& data)
 {
-	const QString extension = contentType.contains(QLatin1String("png"), Qt::CaseInsensitive) ? QLatin1String("png") : QLatin1String("jpg");
-	const QString path = cacheFilePath(current.key, extension);
-
+	QImage image = QImage::fromData(data);
+	if (image.isNull() || image.width() < 32 || image.height() < 32) return false;
+	image = image.scaled(250, 250, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+	const QString path = cacheFilePath(current.key, QLatin1String("jpg"));
 	QDir().mkpath(cacheDir);
 	QSaveFile file(path);
-	if (file.open(QIODevice::WriteOnly) && file.write(data) == data.size() && file.commit()) {
-		memoryCache.insert(current.key, path);
-		QFile::remove(negativeMarkerPath(current.key));
-		emit coverReady(current.key, path);
+	if (!file.open(QIODevice::WriteOnly) || !image.save(&file, "JPEG") || !file.commit()) return false;
+	QSaveFile metadata(cacheFilePath(current.key, QLatin1String("json")));
+	if (metadata.open(QIODevice::WriteOnly)) {
+		metadata.write(QJsonDocument(QJsonObject{{"source", QStringLiteral("https://musicbrainz.org/release/") + chosenRelease.id},
+		                                         {"title", chosenRelease.title}, {"date", chosenRelease.date}}).toJson());
+		metadata.commit();
 	}
-
+	memoryCache.insert(current.key, path);
+	QFile::remove(negativeMarkerPath(current.key));
+	emit coverReady(current.key, path);
+	resultStatus = QStringLiteral("downloaded");
 	finishCurrentRequest();
+	return true;
 }
 
-void RecordingCovers::finishNegative()
+void RecordingCovers::finishNegative(bool transient)
 {
+	resultStatus = transient ? QStringLiteral("retry") : QStringLiteral("missing");
+	// Network outages are retried after five minutes, genuine misses after
+	// one day. Persist both, so rebuilding the view cannot loop requests.
 	QDir().mkpath(cacheDir);
 	QSaveFile marker(negativeMarkerPath(current.key));
 	if (marker.open(QIODevice::WriteOnly)) {
+		marker.write(transient ? "retry" : "missing");
 		marker.commit();
 	}
 	finishCurrentRequest();
@@ -272,10 +373,13 @@ void RecordingCovers::finishNegative()
 
 void RecordingCovers::finishCurrentRequest()
 {
+	const QString key = current.key;
+	const QString status = resultStatus;
 	queuedKeys.remove(current.key);
 	current = PendingRequest();
 	chosenRelease = ReleaseCandidate();
 	busy = false;
+	emit requestFinished(key, status);
 	QTimer::singleShot(0, this, &RecordingCovers::processQueue);
 }
 
@@ -341,10 +445,19 @@ QList<RecordingCovers::ReleaseCandidate> RecordingCovers::parseReleaseSearchResp
 		candidate.id = release.value(QLatin1String("id")).toString();
 		if (candidate.id.isEmpty()) continue;
 
+		candidate.title = release.value("title").toString();
+		candidate.date = release.value("date").toString();
+		candidate.status = release.value("status").toString();
+		candidate.disambiguation = release.value("disambiguation").toString() + QLatin1Char(' ') + release.value("release-group").toObject().value("disambiguation").toString();
+		for (const QJsonValue& credit : release.value("artist-credit").toArray()) {
+			candidate.artists << credit.toObject().value("name").toString()
+			                  << credit.toObject().value("artist").toObject().value("name").toString();
+		}
 		candidate.score = release.value(QLatin1String("score")).toInt();
 		candidate.releaseGroupId = release.value(QLatin1String("release-group")).toObject().value(QLatin1String("id")).toString();
 
 		for (const QJsonValue& labelInfoValue : release.value(QLatin1String("label-info")).toArray()) {
+			candidate.labels << labelInfoValue.toObject().value("label").toObject().value("name").toString();
 			const QString catalogNumber = labelInfoValue.toObject().value(QLatin1String("catalog-number")).toString();
 			if (!catalogNumber.isEmpty()) candidate.catalogNumbers.append(catalogNumber);
 		}
@@ -383,4 +496,56 @@ RecordingCovers::ReleaseCandidate RecordingCovers::selectBestRelease(const QList
 	// Only an exact catalogue number identifies the recording; anything else
 	// risks showing the cover of a different release.
 	return ReleaseCandidate();
+}
+
+QString RecordingCovers::buildWorkQuery(const QString& composer, const QString& work, const QString& performers)
+{
+	const QStringList names = performerNames(performers);
+	const QStringList title = workWords(work);
+	if (composer.trimmed().isEmpty() || names.isEmpty() || title.isEmpty()) return QString();
+	QString term;
+	for (const QString& word : work.split(QRegularExpression(QStringLiteral("[^\\p{L}\\p{N}]+")), Qt::SkipEmptyParts)) {
+		if (word.size() > term.size() && word.at(0).isLetter()) term = word;
+	}
+	if (term.isEmpty()) return QString();
+	QString releaseTerm = QStringLiteral("release:\"%1\"").arg(luceneEscape(term));
+	if (term.startsWith("symphon", Qt::CaseInsensitive)) releaseTerm = QStringLiteral("release:symphon*");
+	return QStringLiteral("artist:\"%1\" AND artist:\"%2\" AND %3")
+	    .arg(luceneEscape(composer.simplified().section(QLatin1Char(' '), -1)),
+	         luceneEscape(names.first().simplified().section(QLatin1Char(' '), -1)), releaseTerm);
+}
+
+QList<RecordingCovers::ReleaseCandidate> RecordingCovers::matchingWorkReleases(const QList<ReleaseCandidate>& candidates,
+    const QString& composer, const QString& work, const QString& performers, const QString& label, const QString& year)
+{
+	QList<ReleaseCandidate> matches;
+	const QStringList names = performerNames(performers);
+	const QStringList title = workWords(work);
+	if (composer.isEmpty() || names.isEmpty() || title.isEmpty()) return matches;
+	for (const ReleaseCandidate& candidate : candidates) {
+		if (!candidate.status.isEmpty() && candidate.status != QLatin1String("Official")) continue;
+		if (!credited(candidate.artists, composer) || !includesWords(workWords(candidate.title), title)) continue;
+		bool allPerformers = true;
+		for (const QString& name : names) allPerformers = allPerformers && credited(candidate.artists, name);
+		if (!allPerformers) continue;
+		if (!label.trimmed().isEmpty() && !credited(candidate.labels, primaryLabelToken(label))) continue;
+		if (QRegularExpression(QStringLiteral("^[0-9]{4}$")).match(year).hasMatch()
+		    && QRegularExpression(QStringLiteral("\\b(?:18|19|20)[0-9]{2}\\b")).match(candidate.disambiguation).hasMatch()
+		    && !QRegularExpression(QStringLiteral("\\b%1\\b").arg(year)).match(candidate.disambiguation).hasMatch()) continue;
+		matches << candidate;
+	}
+	// Prefer dated evidence when available; release dates may be reissue dates.
+	QList<ReleaseCandidate> dated;
+	if (QRegularExpression(QStringLiteral("^[0-9]{4}$")).match(year).hasMatch()) {
+		const QRegularExpression date(QStringLiteral("\\b%1\\b").arg(year));
+		for (const ReleaseCandidate& candidate : matches) {
+			if (date.match(candidate.disambiguation).hasMatch() || candidate.date.left(4) == year) dated << candidate;
+		}
+	}
+	if (!dated.isEmpty()) matches = dated;
+	QSet<QString> groups;
+	for (const ReleaseCandidate& candidate : matches) groups.insert(candidate.releaseGroupId.isEmpty() ? candidate.id : candidate.releaseGroupId);
+	// Distinct albums with the same credited performers can be different
+	// sessions. Do not choose between those without enough identifying data.
+	return groups.size() == 1 ? matches : QList<ReleaseCandidate>();
 }

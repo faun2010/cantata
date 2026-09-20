@@ -54,6 +54,7 @@
 #include "network/networkaccessmanager.h"
 #include "network/networkproxyfactory.h"
 #include "context/recordingcovers.h"
+#include "context/recordingcoverfetcher.h"
 #include "network/translationservice.h"
 #include "streams/streamfetcher.h"
 #include "tags/taghelperiface.h"
@@ -357,6 +358,13 @@ int main(int argc, char* argv[])
 	QThread::currentThread()->setObjectName("GUI");
 	QCoreApplication::setApplicationName(PACKAGE_NAME);
 	QCoreApplication::setOrganizationName(ORGANIZATION_NAME);
+	for (int i = 1; i < argc; ++i) {
+		if (QString::fromLocal8Bit(argv[i]) == QLatin1String("--fetch-recording-covers")) {
+			QCoreApplication worker(argc, argv);
+			worker.setApplicationVersion(PACKAGE_VERSION_STRING);
+			return runRecordingCoverBatch(worker);
+		}
+	}
 
 	Application app(argc, argv);
 	app.setApplicationVersion(PACKAGE_VERSION_STRING);

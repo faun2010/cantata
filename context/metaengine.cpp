@@ -37,7 +37,7 @@ void MetaEngine::enableDebug()
 static const QLatin1String constBlankResp("-");
 
 MetaEngine::MetaEngine(QObject* p)
-	: ContextEngine(p)
+	: ContextEngine(p), searchMode(Artist)
 {
 	wiki = new WikipediaEngine(this);
 	lastfm = new LastFmEngine(this);
@@ -70,6 +70,7 @@ void MetaEngine::setDisambiguationHint(const QStringList& hint)
 void MetaEngine::search(const QStringList& query, Mode mode)
 {
 	DBUG << query << (int)mode;
+	searchMode = mode;
 	responses.clear();
 	wiki->cancel();
 	lastfm->cancel();
@@ -80,6 +81,14 @@ void MetaEngine::search(const QStringList& query, Mode mode)
 void MetaEngine::wikiResponse(const QString& html, const QString& lang)
 {
 	DBUG << html.isEmpty() << lang.isEmpty();
+	if (searchMode == Album) {
+		// For albums, Last.fm is the recording/album description source and
+		// Wikipedia is the work/article fallback. Wait for both responses so a
+		// later Wikipedia hit cannot replace an already useful album synopsis.
+		responses[Wiki] = Response(html.isEmpty() ? constBlankResp : html, lang);
+		emitAlbumResultIfReady();
+		return;
+	}
 	if (!html.isEmpty()) {
 		// Got a wikipedia reponse, use it!
 		DBUG << "Got wiki response!";
@@ -110,6 +119,11 @@ void MetaEngine::wikiResponse(const QString& html, const QString& lang)
 void MetaEngine::lastFmResponse(const QString& html, const QString& lang)
 {
 	DBUG << html.isEmpty() << lang.isEmpty();
+	if (searchMode == Album) {
+		responses[LastFm] = Response(html.isEmpty() ? constBlankResp : html, lang);
+		emitAlbumResultIfReady();
+		return;
+	}
 	if (constBlankResp == responses[Wiki].html) {
 		// Wikipedia failed, so use last.fm response...
 		DBUG << "Wiki failed, so use last.fm";
@@ -121,6 +135,29 @@ void MetaEngine::lastFmResponse(const QString& html, const QString& lang)
 		DBUG << "No wiki response, save last.fm";
 		responses[LastFm] = Response(html.isEmpty() ? constBlankResp : html, lang);
 	}
+}
+
+void MetaEngine::emitAlbumResultIfReady()
+{
+	if (!responses.contains(Wiki) || !responses.contains(LastFm)) {
+		return;
+	}
+
+	const Response& lastFmResponse = responses[LastFm];
+	const Response& wikiResponse = responses[Wiki];
+	if (lastFmResponse.html != constBlankResp && !lastFmResponse.html.isEmpty()) {
+		DBUG << "Using Last.fm album response";
+		emit searchResult(lastFmResponse.html, lastFmResponse.lang);
+	}
+	else if (wikiResponse.html != constBlankResp && !wikiResponse.html.isEmpty()) {
+		DBUG << "Using Wikipedia album fallback";
+		emit searchResult(wikiResponse.html, wikiResponse.lang);
+	}
+	else {
+		DBUG << "Both album responses empty";
+		emit searchResult(QString(), QString());
+	}
+	responses.clear();
 }
 
 #include "moc_metaengine.cpp"

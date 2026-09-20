@@ -14,6 +14,53 @@ WorkInfo::Candidate deriveW(const QString& composer, const QString& album, const
 class WorkInfoTest : public QObject {
 	Q_OBJECT
 private Q_SLOTS:
+	void albumTitleForLookupRemovesRecordingSuffix()
+	{
+		QCOMPARE(WorkInfo::albumTitleForLookup(QStringLiteral("Butterfly Lovers' Violin Concerto (Nishizaki - 1992)")),
+		         QString("Butterfly Lovers' Violin Concerto"));
+	}
+
+	void albumTitleForLookupPreservesPlainTitle()
+	{
+		QCOMPARE(WorkInfo::albumTitleForLookup(QStringLiteral("Butterfly Lovers' Violin Concerto")),
+		         QString("Butterfly Lovers' Violin Concerto"));
+	}
+
+	void historicalAlbumCorpus()
+	{
+		struct Sample {
+			const char* era;
+			QString composer;
+			QString album;
+		};
+		const QList<Sample> samples = {
+		    {"Baroque", QStringLiteral("Johann Sebastian Bach"), QStringLiteral("Cello Suite No.1, BWV 1007 (Maisky - 1999) ")},
+		    {"Baroque", QStringLiteral("Antonio Vivaldi"), QStringLiteral("The Four Seasons, RV 269 'Spring' (Kramer - 1987) ")},
+		    {"Classical", QStringLiteral("Wolfgang Amadeus Mozart"), QStringLiteral("Piano Concerto No.20 in D minor, K.466 (Uchida - 1985) ")},
+		    {"Classical", QStringLiteral("Joseph Haydn"), QStringLiteral("Piano Sonata, Hob. XVI:52 (Brendel - 1979) ")},
+		    {"Early Romantic", QStringLiteral("Franz Schubert"), QStringLiteral("Symphony No.8, D.759 'Unfinished' (Böhm - 1963) ")},
+		    {"Romantic", QStringLiteral("Johannes Brahms"), QStringLiteral("Nänien (Funeral Songs) (Pieters - 1995) ")},
+		    {"Romantic", QStringLiteral("Antonín Dvořák"), QStringLiteral("Carnival Overture, Op.92 (Gunzenhauser - 1992) ")},
+		    {"Late Romantic", QStringLiteral("Richard Strauss"), QStringLiteral("Also sprach Zarathustra, Op.30 (Karajan - 1973) ")},
+		    {"Impressionist", QStringLiteral("Claude Debussy"), QStringLiteral("La mer, L.109 (Boulez - 1993) ")},
+		    {"Modern", QStringLiteral("Igor Stravinsky"), QStringLiteral("The Rite of Spring (Bernstein - 1958) ")},
+		    {"Modern", QStringLiteral("Dmitri Shostakovich"), QStringLiteral("Symphony No.5, Op.47 (Mravinsky - 1973) ")},
+		    {"20th century", QStringLiteral("Arnold Bax"), QStringLiteral("A Dance Rhapsody No.2, RT VI_22 (Ormandy - 1961) ")},
+		    {"Chinese modern", QStringLiteral("Chen Gang"), QStringLiteral("Butterfly Lovers' Violin Concerto (Nishizaki - 1992) ")},
+		};
+
+		for (const Sample& sample : samples) {
+			const WorkInfo::Candidate work = deriveW(sample.composer, sample.album);
+			QVERIFY2(work.valid, sample.era);
+			QVERIFY2(!work.title.isEmpty(), sample.album.toUtf8().constData());
+			QVERIFY2(!work.searchQuery.isEmpty(), sample.album.toUtf8().constData());
+			qInfo().noquote() << sample.era << '|'
+			                  << sample.album << "=> title=" << work.title
+			                  << "catalogue=" << work.catalogueNumber
+			                  << "query=" << work.searchQuery;
+		}
+	}
+
 	void notAClassicalWorkWithoutComposer()
 	{
 		const WorkInfo::Candidate work = deriveW(QString(), QStringLiteral("Some Album (Someone - 2000)"));
@@ -315,6 +362,16 @@ private Q_SLOTS:
 		QVERIFY(WorkInfo::selectSearchResult(response, work).isEmpty());
 		QVERIFY(WorkInfo::selectSearchResult("not json", work).isEmpty());
 		QVERIFY(WorkInfo::selectSearchResult(QByteArray("{\"query\":{\"search\":[]}}"), work).isEmpty());
+	}
+
+	void selectSearchResultRejectsCatalogueOnlyPage()
+	{
+		const WorkInfo::Candidate work = deriveW(QStringLiteral("Antonín Dvořák"), QStringLiteral("Carnival Overture, Op.92 (Gunzenhauser - 1992)"));
+		const QByteArray response = "{\"query\":{\"search\":["
+		                            "{\"title\":\"Op. 92\",\"snippet\":\"In music, Op. 92 stands for Opus number 92.\"},"
+		                            "{\"title\":\"Carnival Overture\",\"snippet\":\"Carnival Overture, Op. 92, is an orchestral work by Antonín Dvořák.\"}"
+		                            "]}}";
+		QCOMPARE(WorkInfo::selectSearchResult(response, work), QString("Carnival Overture"));
 	}
 
 	void selectSearchResultUsesSnippetForCoffeeCantata()

@@ -25,6 +25,12 @@
 
 namespace WorkInfo {
 
+// Returns an album title suitable for external metadata lookups. Real-world
+// tags commonly append the recording performer and year, for example
+// "Butterfly Lovers' Violin Concerto (Nishizaki - 1992)". The display/cache
+// value remains unchanged; only the lookup query uses this cleaned title.
+QString albumTitleForLookup(const QString& album);
+
 // A classical work candidate derived from a song's composer/album/title
 // tags.
 struct Candidate {

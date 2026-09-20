@@ -36,6 +36,7 @@ class QByteArray;
 class QUrl;
 class QJsonObject;
 class ContextEngine;
+class RecordingCoverFetcher;
 class Action;
 class QAction;
 
@@ -140,6 +141,7 @@ private:
 	// "Recommended Recordings" section, appended after the work
 	// introduction when non-empty - see updateRecommendedRecordings().
 	QString recommendedRecordings;
+	RecordingCoverFetcher* coverFetcher;
 	QList<RecommendedRecordings::Recording> recRecordings;// Bundled/override dataset match, if any.
 	QList<RecommendedRecordings::Recording> recAiRecordings;// AI fallback, used only when the dataset has no match.
 	QString recAiSource;

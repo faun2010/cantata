@@ -301,10 +301,10 @@ QList<Recording> parseAiRecordings(const QString& response)
 	return result;
 }
 
-QString recordingCoverKey(const QString& performers, const QString& label, const QString& catalogue)
+QString recordingCoverKey(const QString& performers, const QString& label, const QString& catalogue, const QString& composer, const QString& work, const QString& year)
 {
 	const QString normalised = normaliseName(label) + QLatin1Char('|') + normaliseCatalogue(catalogue) + QLatin1Char('|') + normaliseName(performers);
-	return normalised;
+	return normalised + QLatin1Char('|') + normaliseName(composer) + QLatin1Char('|') + normaliseTitle(work) + QLatin1Char('|') + year.trimmed();
 }
 
 QString middleDotSeparator()

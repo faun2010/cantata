@@ -31,6 +31,7 @@
 #include "network/networkaccessmanager.h"
 #include "network/translationservice.h"
 #include "recordingcovers.h"
+#include "recordingcoverfetcher.h"
 #include "support/action.h"
 #include "support/actioncollection.h"
 #include "support/configuration.h"
@@ -43,6 +44,7 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QMenu>
 #include <QNetworkRequest>
@@ -61,7 +63,9 @@
 
 const QLatin1String AlbumView::constCacheDir("albums/");
 const QLatin1String AlbumView::constInfoExt(".html.gz");
-const QLatin1String AlbumView::constWorkCacheDir("works/");
+// Bump the namespace after tightening Wikipedia result selection so cached
+// catalogue-only pages (for example "Op. 92") cannot survive as work notes.
+const QLatin1String AlbumView::constWorkCacheDir("works-v2/");
 
 static const QLatin1String constScheme("cantata");
 static const QByteArray constWorkUserAgent("Cantata classical-work lookup (https://github.com/CDrummond/cantata)");
@@ -151,19 +155,21 @@ struct RecommendedRecordingLibraryMatch {
 
 // Renders the cover thumbnail slot for a recording - see
 // RecordingCovers::cachedCover(). Empty when no cover is cached (yet).
-static QString renderCoverThumbnail(const QString& localCoverPath)
+static QString renderCoverThumbnail(const QString& localCoverPath, const QString& sourceUrl)
 {
 	if (localCoverPath.isEmpty()) {
 		return QString();
 	}
-	return QLatin1String("<img src=\"") + QUrl::fromLocalFile(localCoverPath).toString().toHtmlEscaped() + QLatin1String("\" width=\"96\"/><br/>");
+	QString image = QLatin1String("<img src=\"") + QUrl::fromLocalFile(localCoverPath).toString().toHtmlEscaped() + QLatin1String("\" width=\"96\"/>");
+	if (!sourceUrl.isEmpty()) image = QLatin1String("<a href=\"") + sourceUrl.toHtmlEscaped() + QLatin1String("\">") + image + QLatin1String("</a>");
+	return image + QLatin1String("<br/>");
 }
 
 // One full "Recommended Recordings" block: cover thumbnail, bold performers
 // line, "label catalogue (year)", guide/rating with its source link
 // (dataset entries only - never for an AI/extra suggestion), the
 // work-dossier-v1 "why" text when one was supplied, and the library link.
-static QString renderRecordingBlock(const RecommendedRecordings::Recording& r, const QString& why, const RecommendedRecordingLibraryMatch* libraryMatch)
+static QString renderRecordingBlock(const RecommendedRecordings::Recording& r, const QString& why, const RecommendedRecordingLibraryMatch* libraryMatch, const WorkInfo::Candidate& work)
 {
 	QStringList rawNames;
 	QStringList escapedNames;
@@ -181,8 +187,8 @@ static QString renderRecordingBlock(const RecommendedRecordings::Recording& r, c
 	}
 
 	QString html;
-	const QString coverKey = RecommendedRecordings::recordingCoverKey(rawNames.join(QLatin1String(", ")), r.label, r.catalogue);
-	html += renderCoverThumbnail(RecordingCovers::self()->cachedCover(coverKey));
+	const QString coverKey = RecommendedRecordings::recordingCoverKey(rawNames.join(QLatin1String(", ")), r.label, r.catalogue, work.composer, work.title, r.year);
+	html += renderCoverThumbnail(RecordingCovers::self()->cachedCover(coverKey), RecordingCovers::self()->cachedSourceUrl(coverKey));
 	if (!escapedNames.isEmpty()) {
 		html += QLatin1String("<b>") + escapedNames.join(RecommendedRecordings::middleDotSeparator()) + QLatin1String("</b><br/>");
 	}
@@ -237,6 +243,7 @@ static QString renderRecordingBlock(const RecommendedRecordings::Recording& r, c
 AlbumView::AlbumView(QWidget* p)
 	: View(p), detailsReceived(0), workJob(nullptr), workExtractsJob(nullptr), workSummaryIsZh(false), workDossierStarted(false), workDossierResponded(false)
 {
+	coverFetcher = new RecordingCoverFetcher(this);
 	engine = ContextEngine::create(this);
 #ifndef Q_OS_WIN
 	// Full width covers not working under windows. Issue #1252
@@ -255,7 +262,7 @@ AlbumView::AlbumView(QWidget* p)
 	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::workIntroTranslationReady);
 	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::recommendedRecordingsTranslationReady);
 	connect(TranslationService::self(), &TranslationService::translationReady, this, &AlbumView::workDossierTranslationReady);
-	connect(RecordingCovers::self(), &RecordingCovers::coverReady, this, &AlbumView::recordingCoverReady);
+	connect(coverFetcher, &RecordingCoverFetcher::coverReady, this, &AlbumView::recordingCoverReady);
 	connect(Covers::self(), SIGNAL(cover(Song, QImage, QString)), SLOT(coverRetrieved(Song, QImage, QString)));
 	connect(Covers::self(), SIGNAL(coverUpdated(Song, QImage, QString)), SLOT(coverUpdated(Song, QImage, QString)));
 	connect(text, SIGNAL(anchorClicked(QUrl)), SLOT(playSong(QUrl)));
@@ -464,7 +471,8 @@ void AlbumView::getDetails()
 			}
 		}
 	}
-	engine->search(QStringList() << currentSong.albumArtistOrComposer() << currentSong.album, ContextEngine::Album);
+	const QString albumForLookup = WorkInfo::albumTitleForLookup(currentSong.album);
+	engine->search(QStringList() << currentSong.albumArtistOrComposer() << albumForLookup, ContextEngine::Album);
 }
 
 void AlbumView::coverRetrieved(const Song& s, const QImage& img, const QString& file)
@@ -694,6 +702,7 @@ void AlbumView::clearCache()
 
 void AlbumView::clearDetails()
 {
+	coverFetcher->setRecordings({});
 	details.clear();
 	originalDetails.clear();
 	detailsSource.clear();
@@ -1070,6 +1079,7 @@ void AlbumView::startWorkDossier()
 
 void AlbumView::updateRecommendedRecordings()
 {
+	coverFetcher->setRecordings({});
 	recRecordings.clear();
 	recAiRecordings.clear();
 	recAiSource.clear();
@@ -1154,6 +1164,7 @@ void AlbumView::rebuildRecommendedRecordingsHtml()
 {
 	recommendedRecordings.clear();
 	if (!currentWork.valid) {
+		coverFetcher->setRecordings({});
 		return;
 	}
 
@@ -1206,25 +1217,25 @@ void AlbumView::rebuildRecommendedRecordingsHtml()
 		return QString();
 	};
 
-	// Kicks off/continues a cover art lookup for "r" - a no-op once a cover
-	// is already cached (see RecordingCovers::request()).
-	auto requestCover = [](const RecommendedRecordings::Recording& r) {
+	// Submit one complete manifest per album/AI result. Cached covers remain
+	// in the manifest so individual completions do not restart the worker.
+	QJsonArray coverRequests;
+	auto requestCover = [this, &coverRequests](const RecommendedRecordings::Recording& r) {
 		QStringList names;
 		if (!r.soloist.isEmpty()) names << r.soloist;
 		if (!r.conductor.isEmpty()) names << r.conductor;
 		if (!r.ensemble.isEmpty()) names << r.ensemble;
 		const QString performers = names.join(QLatin1String(", "));
-		const QString key = RecommendedRecordings::recordingCoverKey(performers, r.label, r.catalogue);
-		if (RecordingCovers::self()->cachedCover(key).isEmpty()) {
-			RecordingCovers::self()->request(key, performers, r.label, r.catalogue, r.year);
-		}
+		if (performers.isEmpty()) return;
+		coverRequests.append(QJsonObject{{"performers", performers}, {"label", r.label}, {"catalogue", r.catalogue},
+		    {"year", r.year}, {"composer", currentWork.composer}, {"work", currentWork.title}});
 	};
 
 	QString html;
 	for (int i = 0; i < recRecordings.size(); ++i) {
 		const RecommendedRecordings::Recording& r = recRecordings.at(i);
 		requestCover(r);
-		html += renderRecordingBlock(r, whyForId(QString::number(i)), findLibraryMatch(r));
+		html += renderRecordingBlock(r, whyForId(QString::number(i)), findLibraryMatch(r), currentWork);
 	}
 
 	// "Extra" recordings named only in the source text: the work-dossier-v1
@@ -1266,11 +1277,12 @@ void AlbumView::rebuildRecommendedRecordingsHtml()
 		for (int i = 0; i < extras.size(); ++i) {
 			const RecommendedRecordings::Recording& r = extras.at(i);
 			requestCover(r);
-			aiHtml += renderRecordingBlock(r, i < extraWhys.size() ? extraWhys.at(i) : QString(), findLibraryMatch(r));
+			aiHtml += renderRecordingBlock(r, i < extraWhys.size() ? extraWhys.at(i) : QString(), findLibraryMatch(r), currentWork);
 		}
 		html += QLatin1String("<p><b>") + tr("AI suggestions (not verified by any guide)").toHtmlEscaped() + QLatin1String("</b></p>") + aiHtml;
 	}
 
+	coverFetcher->setRecordings(coverRequests);
 	if (!composerMatches.isEmpty()) {
 		QStringList libraryLines;
 		for (const RecommendedRecordingLibraryMatch& m : composerMatches) {

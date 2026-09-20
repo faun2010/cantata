@@ -15,11 +15,10 @@
 // Fetches small album-cover thumbnails for the "Recommended Recordings"
 // section of the classical work introduction (see
 // context/recommendedrecordings.h) - one per curated/AI-suggested
-// recording, keyed by an opaque, caller-supplied string. Looks releases up
-// on MusicBrainz (by catalogue number/label, falling back to
-// artist/label), then fetches the front cover from the Cover Art Archive,
-// and caches the result (positive or negative) on disk so the same
-// recording is never looked up twice.
+// recording, keyed by an opaque, caller-supplied string. Searches MusicBrainz
+// by catalogue number, then by work/composer/performers when necessary.
+// Only matching releases are used for Cover Art Archive thumbnails. Cached
+// images have a sidecar identifying the specific edition; misses expire.
 //
 // Like network/translationservice.h, this deliberately talks to its own
 // private QNetworkAccessManager rather than NetworkAccessManager::self()
@@ -68,6 +67,7 @@ public:
 	// injected manager is never deleted here.
 	// Stops new lookups, e.g. for --no-network; cached covers still load.
 	static void disableNetworkAccess();
+	static bool networkAccessEnabled();
 	void setNetworkAccessManager(QNetworkAccessManager* manager);
 
 	// Local file path of a previously downloaded cover for "key", or an
@@ -75,17 +75,19 @@ public:
 	// including while a negative result is cached, i.e. a previous lookup
 	// genuinely found no cover.
 	QString cachedCover(const QString& key) const;
+	QString cachedSourceUrl(const QString& key) const;
 
-	// Queues an asynchronous MusicBrainz + Cover Art Archive lookup for a
-	// recommended recording ("performers" is a free-form string such as
-	// "Artur Rubinstein, Daniel Barenboim"; "year" is currently unused by
-	// the lookup itself but accepted for interface stability/future use).
-	// A no-op when "key" is already cached (positive, or an unexpired
-	// negative result) or already queued/in flight.
-	void request(const QString& key, const QString& performers, const QString& label, const QString& catalogue, const QString& year);
+	// Queues an asynchronous lookup. Work context enables a conservative
+	// fallback when the exact catalogue is absent or has no cover. The year
+	// prefers dated matches; release dates may refer to later reissues.
+	// Already cached, queued or temporarily suppressed keys are a no-op.
+
+	void request(const QString& key, const QString& performers, const QString& label, const QString& catalogue, const QString& year,
+	             const QString& composer = QString(), const QString& work = QString());
 
 Q_SIGNALS:
 	void coverReady(const QString& key, const QString& localPath);
+	void requestFinished(const QString& key, const QString& status);
 
 public:
 	// ---- Pure, unit-testable helpers (see tests/recordingcovers_test.cpp) ----
@@ -110,6 +112,7 @@ public:
 	// "catalogue" or "label" may be empty; returns an empty string when
 	// both are.
 	static QString buildCatalogueQuery(const QString& catalogue, const QString& label);
+	static QString buildWorkQuery(const QString& composer, const QString& work, const QString& performers);
 
 
 	// A single candidate release from a MusicBrainz release search
@@ -118,6 +121,12 @@ public:
 		QString id;
 		QString releaseGroupId;
 		QStringList catalogNumbers;
+		QString title;
+		QStringList artists;
+		QStringList labels;
+		QString date;
+		QString disambiguation;
+		QString status;
 		int score = 0;
 		bool coverArtFront = false;
 		bool hasCoverArtFrontField = false;
@@ -129,16 +138,12 @@ public:
 	// "releases" array; entries without an "id" are skipped.
 	static QList<ReleaseCandidate> parseReleaseSearchResponse(const QByteArray& json);
 
-	// Picks the best release from "candidates": one whose own reported
-	// catalogue number normalises (see normaliseCatalogueNumber()) to
-	// exactly "wantedCatalogue" wins outright, whatever its position in
-	// the list; otherwise the first candidate (MusicBrainz's own score
-	// order) whose cover-art-archive.front field is true; failing that,
-	// simply the first candidate. "wantedCatalogue" may be empty, in which
-	// case only the cover-art-archive/first-candidate rules apply. Returns
-	// a default-constructed (empty id) candidate when "candidates" is
-	// empty.
+	// Selects only an exact normalised catalogue match, preferring a known
+	// front cover. No exact match returns an empty candidate.
+
 	static ReleaseCandidate selectBestRelease(const QList<ReleaseCandidate>& candidates, const QString& wantedCatalogue);
+	static QList<ReleaseCandidate> matchingWorkReleases(const QList<ReleaseCandidate>& candidates, const QString& composer,
+	                                                  const QString& work, const QString& performers, const QString& label, const QString& year);
 
 private:
 	struct PendingRequest {
@@ -147,9 +152,11 @@ private:
 		QString label;
 		QString catalogue;
 		QString year;
+		QString composer;
+		QString work;
 	};
 
-	enum class Stage { CatalogueSearch, ReleaseCover, ReleaseGroupCover };
+	enum class Stage { CatalogueSearch, WorkSearch, ReleaseCover };
 
 	QString cacheFilePath(const QString& key, const QString& extension) const;
 	QString negativeMarkerPath(const QString& key) const;
@@ -157,13 +164,15 @@ private:
 	QString findExistingCoverFile(const QString& key) const;
 
 	void processQueue();
+	void searchByWork();
+	void fetchNextRelease();
 	void runMusicBrainzSearch(const QString& query);
 	void sendMusicBrainzSearch(const QString& query);
 	void handleMusicBrainzReply(QNetworkReply* reply);
 	void fetchCoverArt(const QUrl& url);
 	void handleCoverArtReply(QNetworkReply* reply);
-	void saveImageAndFinish(const QByteArray& data, const QString& contentType);
-	void finishNegative();
+	bool saveImageAndFinish(const QByteArray& data);
+	void finishNegative(bool transient = false);
 	void finishCurrentRequest();
 
 	QString cacheDir;
@@ -177,6 +186,10 @@ private:
 	PendingRequest current;
 	Stage stage = Stage::CatalogueSearch;
 	ReleaseCandidate chosenRelease;
+	QList<ReleaseCandidate> remainingReleases;
+	bool workSearchTried = false;
+	bool transientFailure = false;
+	QString resultStatus;
 
 	qint64 lastMusicBrainzRequestAtMs = 0;
 };

@@ -252,6 +252,13 @@ private Q_SLOTS:
 		QVERIFY(!a.isEmpty());
 	}
 
+	void recordingCoverKeySeparatesWorksAndDates()
+	{
+		const QString first = recordingCoverKey("Carlos Kleiber", "DG", "", "Beethoven", "Symphony No.5", "1975");
+		QVERIFY(first != recordingCoverKey("Carlos Kleiber", "DG", "", "Beethoven", "Symphony No.7", "1975"));
+		QVERIFY(first != recordingCoverKey("Carlos Kleiber", "DG", "", "Beethoven", "Symphony No.5", "1985"));
+	}
+
 	void recordingCoverKeyDiffersForDifferentRecordings()
 	{
 		const QString a = recordingCoverKey(QStringLiteral("Artur Rubinstein"), QStringLiteral("RCA"), QStringLiteral("ARL1-4711"));

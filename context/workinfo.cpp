@@ -788,6 +788,13 @@ Candidate deriveWork(const QString& composer, const QString& artist, const QStri
 	return work;
 }
 
+QString albumTitleForLookup(const QString& album)
+{
+	QString performer;
+	QString year;
+	return stripTrailingDecorations(album.trimmed(), performer, year);
+}
+
 namespace {
 
 QString stripHtmlTags(const QString& html)
@@ -845,6 +852,12 @@ QString selectSearchResult(const QByteArray& searchResponseJson, const Candidate
 			normalizedSnippet.remove(QLatin1Char('.')).remove(QLatin1Char(' '));
 			titleHasCatalogue = normalizedTitle.contains(normalizedCatalogue, Qt::CaseInsensitive);
 			snippetHasCatalogue = normalizedSnippet.contains(normalizedCatalogue, Qt::CaseInsensitive);
+			// Pages titled only with an opus/catalogue number (for example
+			// "Op. 92") are disambiguation lists, not the work itself. Do not
+			// let their catalogue-number match outrank a real work result.
+			if (normalizedTitle.compare(normalizedCatalogue, Qt::CaseInsensitive) == 0) {
+				titleHasCatalogue = false;
+			}
 		}
 
 		if (titleHasCatalogue) {
