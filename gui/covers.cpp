@@ -27,6 +27,7 @@
 #include "discogsartwork.h"
 #include "apikeys.h"
 #include "config.h"
+#include "context/artistlookup.h"
 #include "devices/deviceoptions.h"
 #include "mpd-interface/mpdconnection.h"
 #include "mpd-interface/song.h"
@@ -732,13 +733,17 @@ void CoverDownloader::downloadViaRemote(Job& job)
 {
 	QUrl url;
 	if (job.song.isArtistImageRequest()) {
+		if (!job.wikipediaTried && !ComposerTable::biographyName(job.song.albumArtist()).isEmpty()) {
+			downloadViaWikipedia(job);
+			return;
+		}
 		url = QUrl("https://ws.audioscrobbler.com/2.0/");
 		QUrlQuery query;
 
 		query.addQueryItem("method", "artist.getinfo");
 		ApiKeys::self()->addKey(query, ApiKeys::LastFm);
 		query.addQueryItem("autocorrect", "1");
-		query.addQueryItem("artist", Covers::fixArtist(job.song.albumArtist()));
+		query.addQueryItem("artist", ArtistLookup::queryName(Covers::fixArtist(job.song.albumArtist())));
 		url.setQuery(query);
 
 		NetworkJob* j = network()->get(url, constRemoteTimeout);
@@ -761,6 +766,48 @@ void CoverDownloader::downloadViaRemote(Job& job)
 		jobs.insert(j, job);
 		DBUG << url.toString();
 	}
+}
+
+void CoverDownloader::downloadViaWikipedia(Job& job)
+{
+	job.wikipediaTried = true;
+	QUrl url(QStringLiteral("https://en.wikipedia.org/w/api.php"));
+	QUrlQuery query;
+	query.addQueryItem("action", "query");
+	query.addQueryItem("format", "json");
+	query.addQueryItem("formatversion", "2");
+	query.addQueryItem("redirects", "1");
+	query.addQueryItem("prop", "pageimages|pageprops");
+	query.addQueryItem("piprop", "thumbnail");
+	query.addQueryItem("pithumbsize", "600");
+	query.addQueryItem("titles", ArtistLookup::queryName(job.song.albumArtist()));
+	url.setQuery(query);
+	NetworkJob* reply = network()->get(url, constRemoteTimeout);
+	jobs.insert(reply, job);
+	connect(reply, &NetworkJob::finished, this, &CoverDownloader::wikipediaCallFinished);
+}
+
+void CoverDownloader::wikipediaCallFinished()
+{
+	NetworkJob* reply = qobject_cast<NetworkJob*>(sender());
+	if (!reply) return;
+	auto it = jobs.find(reply);
+	if (it != jobs.end()) {
+		Job job = it.value();
+		jobs.erase(it);
+		const QUrl url = reply->ok() ? ArtistLookup::composerImageUrl(QJsonDocument::fromJson(reply->readAll()).object(), job.song.albumArtist()) : QUrl();
+		if (!url.isEmpty()) {
+			job.type = JobWikipediaImage;
+			NetworkJob* image = network()->get(url, constRemoteTimeout);
+			jobs.insert(image, job);
+			connect(image, &NetworkJob::finished, this, &CoverDownloader::jobFinished);
+			DBUG << "download Wikipedia composer image" << url;
+		}
+		else {
+			downloadViaRemote(job);
+		}
+	}
+	reply->deleteLater();
 }
 
 void CoverDownloader::downloadViaDiscogs(Job& job)
@@ -853,7 +900,7 @@ void CoverDownloader::startMusicBrainzSearch(Job job)
 	}
 	QUrl url("https://musicbrainz.org/ws/2/artist");
 	QUrlQuery query;
-	query.addQueryItem("query", "artist:\"" + ArtistImageProvider::luceneQuoted(Covers::fixArtist(job.song.albumArtist())) + "\"");
+	query.addQueryItem("query", "artist:\"" + ArtistImageProvider::luceneQuoted(ArtistLookup::queryName(Covers::fixArtist(job.song.albumArtist()))) + "\"");
 	query.addQueryItem("fmt", "json");
 	query.addQueryItem("limit", "5");
 	url.setQuery(query);
@@ -1054,7 +1101,7 @@ void CoverDownloader::lastFmArtistCallFinished()
 		Job job = it.value();
 		jobs.erase(it);
 		QString musicBrainzId = reply->ok()
-				? ArtistImageProvider::lastFmMusicBrainzId(reply->readAll(), Covers::fixArtist(job.song.albumArtist()))
+				? ArtistImageProvider::lastFmMusicBrainzId(reply->readAll(), ArtistLookup::queryName(Covers::fixArtist(job.song.albumArtist())))
 				: QString();
 
 		// Last.fm autocorrect can return a different artist. Do not use that artist's image.
@@ -1092,7 +1139,7 @@ void CoverDownloader::musicBrainzSearchFinished()
 		Job job = it.value();
 		jobs.erase(it);
 		QString musicBrainzId = reply->ok()
-				? ArtistImageProvider::uniqueMusicBrainzArtistId(reply->readAll(), Covers::fixArtist(job.song.albumArtist()))
+				? ArtistImageProvider::uniqueMusicBrainzArtistId(reply->readAll(), ArtistLookup::queryName(Covers::fixArtist(job.song.albumArtist())))
 				: QString();
 
 		// A name-only query cannot safely choose between distinct artists with the
@@ -1193,7 +1240,10 @@ void CoverDownloader::jobFinished()
 		}
 
 		jobs.remove(it.key());
-		if (img.img.isNull() && JobDiscogsImage == job.type && job.song.isArtistImageRequest()) {
+		if (img.img.isNull() && JobWikipediaImage == job.type) {
+			downloadViaRemote(job);
+		}
+		else if (img.img.isNull() && JobDiscogsImage == job.type && job.song.isArtistImageRequest()) {
 			downloadNextDiscogsImage(job);
 		}
 		else if (img.img.isNull() && JobFanArt == job.type && job.song.isArtistImageRequest()) {

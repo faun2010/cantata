@@ -22,12 +22,14 @@
  */
 
 #include "wikipediaengine.h"
+#include "artistlookup.h"
 #include "wikitemplateutils.h"
 #include "config.h"
 #include "gui/covers.h"
 #include "gui/settings.h"
 #include "network/networkaccessmanager.h"
 #include <QRegularExpression>
+#include <QJsonDocument>
 #include <QUrlQuery>
 #include <QXmlStreamReader>
 
@@ -366,7 +368,54 @@ void WikipediaEngine::search(const QStringList& query, Mode mode)
 	//        emit searchResult(QString(), QString());
 	//        return;
 	//    }
-	requestTitles(fixQuery(query), mode, getPrefix(preferredLangs.first()));
+	QStringList fixed = fixQuery(query);
+	if (mode == Artist && !fixed.isEmpty()) {
+		fixed[0] = ArtistLookup::queryName(fixed.first());
+		requestArtistTitle(fixed, getPrefix(preferredLangs.first()));
+	}
+	else {
+		requestTitles(fixed, mode, getPrefix(preferredLangs.first()));
+	}
+}
+
+void WikipediaEngine::requestArtistTitle(const QStringList& query, const QString& lang)
+{
+	cancel();
+	QUrl url(QStringLiteral("https://") + lang + QStringLiteral(".wikipedia.org/w/api.php"));
+	QUrlQuery q;
+	q.addQueryItem(QStringLiteral("action"), QStringLiteral("query"));
+	q.addQueryItem(QStringLiteral("titles"), query.first());
+	q.addQueryItem(QStringLiteral("redirects"), QStringLiteral("1"));
+	q.addQueryItem(QStringLiteral("prop"), QStringLiteral("pageprops|extracts"));
+	q.addQueryItem(QStringLiteral("format"), QStringLiteral("json"));
+	q.addQueryItem(QStringLiteral("formatversion"), QStringLiteral("2"));
+	if (introOnly) q.addQueryItem(QStringLiteral("exintro"), QStringLiteral("1"));
+	url.setQuery(q);
+	job = NetworkAccessManager::self()->get(url);
+	job->setProperty(constQueryProperty, query);
+	connect(job, &NetworkJob::finished, this, &WikipediaEngine::parseArtistTitle);
+}
+
+void WikipediaEngine::parseArtistTitle()
+{
+	NetworkJob* reply = getReply(sender());
+	if (!reply) return;
+	const QStringList query = reply->property(constQueryProperty).toStringList();
+	const QString lang = getLang(reply->url());
+	const QJsonObject root = QJsonDocument::fromJson(reply->readAll()).object();
+	const QString title = reply->ok() ? ArtistLookup::biographyTitle(root, query.value(0)) : QString();
+	if (!title.isEmpty()) {
+		const QString extract = root.value(QStringLiteral("query")).toObject().value(QStringLiteral("pages")).toArray().first().toObject().value(QStringLiteral("extract")).toString().trimmed();
+		if (!extract.isEmpty()) {
+			QUrl source(QStringLiteral("https://") + lang + QStringLiteral(".wikipedia.org"));
+			source.setPath(QStringLiteral("/wiki/") + QString(title).replace(QLatin1Char(' '), QLatin1Char('_')));
+			emit searchResult(extract + QStringLiteral("<br/><br/><a href=\"") + source.toString().toHtmlEscaped() + QStringLiteral("\">") + constReadMorePlaceholder + QStringLiteral("</a>"), lang);
+			return;
+		}
+	}
+	// Unknown names, ambiguous titles and unavailable extracts still get the
+	// existing search/disambiguation path and Last.fm fallback.
+	requestTitles(query, Artist, lang);
 }
 
 void WikipediaEngine::requestTitles(const QStringList& query, Mode mode, const QString& lang)

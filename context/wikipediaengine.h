@@ -54,10 +54,12 @@ private:
 	bool hasNamesakeCandidate(const QString& title) const;
 	bool mentionsHint(const QString& page) const;
 	void requestTitles(const QStringList& query, Mode mode, const QString& lang);
+	void requestArtistTitle(const QStringList& query, const QString& lang);
 	void getPage(const QStringList& query, Mode mode, const QString& lang);
 
 private Q_SLOTS:
 	void parseTitles();
+	void parseArtistTitle();
 	void parsePage();
 
 private:

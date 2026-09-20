@@ -22,6 +22,7 @@
  */
 
 #include "lastfmengine.h"
+#include "artistlookup.h"
 #include "config.h"
 #include "gui/apikeys.h"
 #include "gui/covers.h"
@@ -66,6 +67,7 @@ QString LastFmEngine::translateLinks(QString text) const
 void LastFmEngine::search(const QStringList& query, Mode mode)
 {
 	QStringList fixedQuery = fixQuery(query);
+	if (mode == Artist && !fixedQuery.isEmpty()) fixedQuery[0] = ArtistLookup::queryName(fixedQuery.first());
 	QUrl url("https://ws.audioscrobbler.com/2.0/");
 	QUrlQuery urlQuery;
 
@@ -133,6 +135,7 @@ void LastFmEngine::parseResponse()
 		break;
 	}
 
+	if (mode == Artist && ArtistLookup::isTagCorrection(text)) text.clear();
 	if (!text.isEmpty()) {
 		static const QRegularExpression constLicense("User-contributed text is available.*");
 		text.remove(constLicense);

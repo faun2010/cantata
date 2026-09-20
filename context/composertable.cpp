@@ -155,6 +155,8 @@ const QList<SurnameGroup>& composerGroups()
 	    {{QStringLiteral("tchaikovsky"), QStringLiteral("tschaikowsky"), QStringLiteral("tschaikovsky"), QStringLiteral("chaikovsky"), QStringLiteral("cajkovskij")},
 	     {{QStringLiteral("Pyotr Ilyich Tchaikovsky"), {}, false}}},
 	    {{QStringLiteral("mussorgsky"), QStringLiteral("moussorgsky")}, {{QStringLiteral("Modest Mussorgsky"), {}, false}}},
+	    {{QStringLiteral("borodin"), QStringLiteral("borodine")}, {{QStringLiteral("Alexander Borodin"), {}, false}}},
+	    {{QStringLiteral("scriabin"), QStringLiteral("skryabin")}, {{QStringLiteral("Alexander Scriabin"), {}, false}}},
 	    {{QStringLiteral("rimsky-korsakov")}, {{QStringLiteral("Nikolai Rimsky-Korsakov"), {}, false}}},
 	    {{QStringLiteral("rachmaninoff"), QStringLiteral("rachmaninov")}, {{QStringLiteral("Sergei Rachmaninoff"), {}, false}}},
 	    {{QStringLiteral("prokofiev")}, {{QStringLiteral("Sergei Prokofiev"), {}, false}}},
@@ -351,6 +353,47 @@ QString resolve(const QString& rawText)
 		return surnameLast;
 	}
 	return resolveSurnameAndGiven(tokens.first(), tokens.mid(1));
+}
+
+QString biographyName(const QString& rawText)
+{
+	QString text = rawText.trimmed();
+	// Dates are metadata, but a role/ensemble annotation is not a person.
+	static const QRegularExpression dates(QStringLiteral("\\s*\\(\\s*\\d{4}\\s*[-–]\\s*\\d{4}\\s*\\)\\s*$"));
+	text.remove(dates);
+	const QStringList parts = text.split(QLatin1Char(','));
+	if (parts.size() == 2) text = parts.at(1).trimmed() + QLatin1Char(' ') + parts.first().trimmed();
+	auto key = [](const QString& name) {
+		QString result = stripDiacritics(name).toCaseFolded();
+		result.remove(QRegularExpression(QStringLiteral("[\\s.·’'\\-]+")));
+		return result;
+	};
+	const QString input = key(text);
+	if (input.isEmpty()) return QString();
+	// These full-name aliases supplement accent/case/order normalization.
+	static const QMap<QString, QStringList> aliases = {
+	    {QStringLiteral("Alexander Borodin"), {QStringLiteral("Aleksandr Borodin"), QStringLiteral("Alexandr Borodin"), QStringLiteral("Alexandre Borodine"), QStringLiteral("Aleksandr Porfiryevich Borodin"), QStringLiteral("Alexander Porfiryevich Borodin"), QStringLiteral("Александр Бородин"), QStringLiteral("Александр Порфирьевич Бородин")}},
+	    {QStringLiteral("Alexander Scriabin"), {QStringLiteral("Aleksandr Skryabin"), QStringLiteral("Aleksandr Scriabin"), QStringLiteral("Alexander Skriabin")}},
+	    {QStringLiteral("Pyotr Ilyich Tchaikovsky"), {QStringLiteral("Pyotr Tchaikovsky"), QStringLiteral("Pyotr Il'yich Tchaikovsky"), QStringLiteral("Peter Ilyich Tchaikovsky"), QStringLiteral("Peter Tschaikowsky"), QStringLiteral("Piotr Ilitch Tchaïkovski")}},
+	    {QStringLiteral("Sergei Rachmaninoff"), {QStringLiteral("Sergey Rachmaninov"), QStringLiteral("Sergei Rachmaninov"), QStringLiteral("Sergey Rachmaninoff")}},
+	    {QStringLiteral("Sergei Prokofiev"), {QStringLiteral("Sergey Prokofiev"), QStringLiteral("Serge Prokofieff")}},
+	    {QStringLiteral("Nikolai Rimsky-Korsakov"), {QStringLiteral("Nikolay Rimsky-Korsakov"), QStringLiteral("Nikolaj Rimskij-Korsakov")}},
+	    {QStringLiteral("Modest Mussorgsky"), {QStringLiteral("Modest Moussorgsky"), QStringLiteral("Modest Musorgsky")}},
+	    {QStringLiteral("George Frideric Handel"), {QStringLiteral("Georg Friedrich Händel"), QStringLiteral("George Frederick Handel")}}
+	};
+	for (const SurnameGroup& group : composerGroups()) {
+		for (const Entry& entry : group.entries) {
+			if (input == key(entry.canonical)) return entry.canonical;
+			for (const QString& alias : aliases.value(entry.canonical)) {
+				if (input == key(alias)) return entry.canonical;
+			}
+			const QStringList names = entry.canonical.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+			QString initials;
+			for (int i = 0; i + 1 < names.size(); ++i) initials += names.at(i).left(1);
+			if (!initials.isEmpty() && (input == key(initials + names.last()) || input == key(names.last() + initials))) return entry.canonical;
+		}
+	}
+	return QString();
 }
 
 }// namespace ComposerTable

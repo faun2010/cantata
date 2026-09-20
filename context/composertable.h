@@ -46,6 +46,11 @@ namespace ComposerTable {
 // than guessed.
 QString resolve(const QString& text);
 
+// Conservative identity lookup for biographies: full known names, explicit
+// transliteration aliases and initials only. Unlike resolve(), never infer a
+// person from just a matching surname (e.g. the Borodin Quartet).
+QString biographyName(const QString& text);
+
 }// namespace ComposerTable
 
 #endif

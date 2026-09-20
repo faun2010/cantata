@@ -58,7 +58,8 @@ public:
 		JobFanArt,
 		JobMusicBrainzSearch,
 		JobMusicBrainzArtist,
-		JobWikiData
+		JobWikiData,
+		JobWikipediaImage
 	};
 
 	struct Job {
@@ -73,6 +74,7 @@ public:
 		QStringList discogsImageUrls;
 		bool discogsLookupPending = false;
 		bool musicBrainzLinksLoaded = false;
+		bool wikipediaTried = false;
 		JobType type;
 		int level;
 	};
@@ -95,6 +97,7 @@ private:
 	void downloadViaMpd(Job& job);
 	bool downloadViaHttp(Job& job, JobType type);
 	void downloadViaRemote(Job& job);
+	void downloadViaWikipedia(Job& job);
 	void downloadViaDiscogs(Job& job);
 	void downloadViaDiscogsArtist(Job job);
 	void startDiscogsArtist(Job job);
@@ -114,6 +117,7 @@ private Q_SLOTS:
 	void musicBrainzSearchFinished();
 	void musicBrainzArtistCallFinished();
 	void wikiDataCallFinished();
+	void wikipediaCallFinished();
 	void jobFinished();
 	void onlineJobFinished();
 

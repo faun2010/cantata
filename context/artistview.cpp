@@ -22,6 +22,7 @@
  */
 
 #include "artistview.h"
+#include "artistlookup.h"
 #include "contextengine.h"
 #include "gui/apikeys.h"
 #include "gui/covers.h"
@@ -59,7 +60,8 @@ const QLatin1String ArtistView::constSimilarInfoExt(".txt");
 
 static QString cacheFileName(const QString& artist, const QString& lang, bool similar, bool createDir)
 {
-	return Utils::cacheDir(ArtistView::constCacheDir, createDir) + Covers::encodeName(artist) + (similar ? "-similar" : ("." + lang)) + (similar ? ArtistView::constSimilarInfoExt : ArtistView::constInfoExt);
+	const QString cacheArtist = similar ? artist : ArtistLookup::queryName(artist);
+	return Utils::cacheDir(ArtistView::constCacheDir, createDir) + Covers::encodeName(cacheArtist) + (similar ? "-similar" : ("." + lang)) + (similar ? ArtistView::constSimilarInfoExt : ArtistView::constInfoExt);
 }
 
 static QString buildUrl(const LibraryDb::Album& al)
@@ -244,7 +246,7 @@ void ArtistView::loadBio()
 			KCompressionDevice f(cachedFile, KCompressionDevice::GZip);
 			if (f.open(QIODevice::ReadOnly)) {
 			    QString data = QString::fromUtf8(f.readAll());
-				if (!data.isEmpty()) {
+				if (!data.isEmpty() && !ArtistLookup::isTagCorrection(data)) {
 					searchResponse(data, QString());
 					Utils::touchFile(cachedFile);
 					return;
@@ -408,6 +410,7 @@ void ArtistView::abort()
 
 void ArtistView::searchResponse(const QString& resp, const QString& lang)
 {
+	if (ArtistLookup::isTagCorrection(resp)) return;
 	biography = engine->translateLinks(resp);
 	originalBiography = biography;
 	biographyTranslation = BiographyTranslation::prepare(biography);

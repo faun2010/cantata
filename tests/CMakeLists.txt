@@ -111,6 +111,11 @@ target_link_libraries(composertable_test PRIVATE
 )
 add_test(NAME composertable_test COMMAND composertable_test)
 
+add_executable(artistlookup_test artistlookup_test.cpp ../context/composertable.cpp)
+target_include_directories(artistlookup_test PRIVATE ..)
+target_link_libraries(artistlookup_test PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Test)
+add_test(NAME artistlookup_test COMMAND artistlookup_test)
+
 add_executable(recommendedrecordings_test recommendedrecordings_test.cpp ../context/recommendedrecordings.cpp ../context/workinfo.cpp ../context/composertable.cpp)
 target_include_directories(recommendedrecordings_test PRIVATE ..)
 target_link_libraries(recommendedrecordings_test PRIVATE
