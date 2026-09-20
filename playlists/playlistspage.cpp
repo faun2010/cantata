@@ -22,6 +22,7 @@
  */
 
 #include "playlistspage.h"
+#include "composerdaypage.h"
 #include "dynamicplaylists.h"
 #include "dynamicplaylistspage.h"
 #include "gui/settings.h"
@@ -30,6 +31,7 @@
 #include "smartplaylistspage.h"
 #include "storedplaylistspage.h"
 #include "support/configuration.h"
+#include "support/icon.h"
 
 PlaylistsPage::PlaylistsPage(QWidget* p)
 	: MultiPageWidget(p)
@@ -41,6 +43,9 @@ PlaylistsPage::PlaylistsPage(QWidget* p)
 	smart = new SmartPlaylistsPage(this);
 	connect(smart, SIGNAL(error(QString)), this, SIGNAL(error(QString)));
 	addPage(SmartPlaylists::self()->name(), SmartPlaylists::self()->icon(), SmartPlaylists::self()->title(), SmartPlaylists::self()->descr(), smart);
+	composerDay = new ComposerDayPage(this);
+	connect(composerDay, SIGNAL(error(QString)), this, SIGNAL(error(QString)));
+	addPage(QLatin1String("composerday"), Icon::fa(fa::fa_solid, fa::fa_birthday_cake), tr("Composer of the Day"), tr("Today's anniversaries, work by work"), composerDay);
 	connect(stored, SIGNAL(addToDevice(QString, QString, QList<Song>)), SIGNAL(addToDevice(QString, QString, QList<Song>)));
 	Configuration config(metaObject()->className());
 	load(config);

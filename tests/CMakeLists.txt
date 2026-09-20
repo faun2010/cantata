@@ -142,3 +142,12 @@ target_link_libraries(recordingcovers_test PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
 )
 add_test(NAME recordingcovers_test COMMAND recordingcovers_test)
+
+add_executable(composerday_test composerday_test.cpp ../playlists/composerday.cpp ../context/recommendedrecordings.cpp ../context/workinfo.cpp ../context/composertable.cpp)
+target_include_directories(composerday_test PRIVATE ..)
+target_compile_definitions(composerday_test PRIVATE CANTATA_CALENDAR="${CMAKE_CURRENT_SOURCE_DIR}/../playlists/composercalendar.json")
+target_link_libraries(composerday_test PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Test
+)
+add_test(NAME composerday_test COMMAND composerday_test)

@@ -29,6 +29,7 @@
 class Action;
 class StoredPlaylistsPage;
 class DynamicPlaylistsPage;
+class ComposerDayPage;
 class SmartPlaylistsPage;
 
 class PlaylistsPage : public MultiPageWidget {
@@ -49,6 +50,7 @@ private:
 	StoredPlaylistsPage* stored;
 	DynamicPlaylistsPage* dynamic;
 	SmartPlaylistsPage* smart;
+	ComposerDayPage* composerDay;
 };
 
 #endif

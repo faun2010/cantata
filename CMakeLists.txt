@@ -525,6 +525,9 @@ target_sources(
         playlists/storedplaylistspage.cpp
         playlists/rulesplaylists.cpp
         playlists/smartfilter.cpp
+        playlists/composerday.cpp
+        playlists/composerdaymodel.cpp
+        playlists/composerdaypage.cpp
         playlists/smartplaylists.cpp
         playlists/smartplaylistspage.cpp
         online/onlineservicespage.cpp
