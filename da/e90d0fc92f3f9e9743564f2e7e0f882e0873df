@@ -1,0 +1,27 @@
+mybuild.sh
+  s_0b62b106273895::t_4245672fc46bac 2-5,9,11-45,47-72,75-76
+config.h.cmake
+  s_0b62b106273895::t_17f75609b5e2d3 17-18
+scripts/build-linux-local.sh
+  s_0b62b106273895::t_af286a01b7fb3c 1-39
+docs/linux-local-build.md
+  s_0b62b106273895::t_08e67ff95611b9 5-14
+CMakeLists.txt
+  s_0b62b106273895::t_2a0ceb6d198594 17-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.7.5",
+  "base_commit_sha": "dae90d0fc92f3f9e9743564f2e7e0f882e0873df",
+  "prompts": {},
+  "sessions": {
+    "s_0b62b106273895": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0c18a-17e8-712b-8fa2-717e1414aee1",
+        "model": "fh-chat-4.5"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    }
+  }
+}
