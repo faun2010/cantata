@@ -14,7 +14,13 @@ set(PROJECT_ID "Cantata.cantata.unix.dog")
 set(PROJECT_REV_ID "dog.unix.cantata.Cantata")
 set(EXECUTABLE_NAME "cantata")
 
-message(STATUS "Configuring ${PROJECT_NAME} v${PROJECT_VERSION}")
+# Display version shown by the app ("--version", About dialog, MPD lsinfo).
+# project(VERSION) must stay numeric, so the suffix is only appended here.
+set(CANTATA_VERSION_SUFFIX "-ai")
+set(PACKAGE_VERSION_STRING "${PROJECT_VERSION}${CANTATA_VERSION_SUFFIX}")
+set(PACKAGE_STRING "${PROJECT_NAME} ${PACKAGE_VERSION_STRING}")
+
+message(STATUS "Configuring ${PROJECT_NAME} v${PROJECT_VERSION}${CANTATA_VERSION_SUFFIX}")
 
 # Set module path.
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)

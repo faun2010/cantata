@@ -2,6 +2,16 @@
 
 在项目目录内构建并直接运行 `build/cantata`，不安装到系统，也不修改系统软件包。以下命令在 Ubuntu 24.04（Qt 6.4.2，无 KF6，无 Qt Multimedia 开发包）上验证过。
 
+一键构建（自动识别 Ubuntu，等价于下面的完整命令）：
+
+```sh
+cd cantata
+./mybuild.sh            # 配置 + 编译，并用 --version 做无界面自检
+./mybuild.sh --run      # 构建成功后直接启动 cantata
+```
+
+构建目录可用 `CANTATA_BUILD_DIR` 覆盖，并行度可用 `CANTATA_BUILD_JOBS` 覆盖。
+
 ## 构建与运行
 
 ```sh
