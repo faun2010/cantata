@@ -6,7 +6,20 @@
 
 ## 数据从哪来
 
-1. **纪念日日历**：`playlists/composercalendar.json`（编译进资源，约 150 位作曲家的生卒日期）。
+1. **纪念日日历**：`playlists/composercalendar.json`（编译进资源，548 位作曲家，覆盖一年中 341 天）。
+   前 146 条是手工核对的（名字与 `context/composertable.cpp` 的规范写法一致），
+   其余由 `scripts/gen-composer-calendar.py` 从 Wikidata 生成：取职业"作曲家"且维基站点链接数 ≥ 20 的条目，
+   只保留"作曲家"是首要职业、带古典体裁或 IMSLP 页面、且不是流行歌手/以文学政治科学出名的人；
+   儒略历日期换算为格里高利历，1582 年前的日期丢弃。重新生成：
+
+   ```sh
+   scripts/gen-composer-calendar.py            # 预览数量，不写文件
+   scripts/gen-composer-calendar.py --apply    # 重写日历（手工条目保留在前）
+   ```
+
+   文件顺序即知名度顺序，同一天多位作曲家时按此排序（先忌日、后诞辰）；
+   曲库里一个录音都没有的作曲家只显示一行、不展开。页面跨过午夜会自动换成新一天。
+
    想加人或改日期，把同样格式的文件放到配置目录下即可覆盖内置的那份：
    - Linux：`~/.config/cantata/composercalendar.json`
    - macOS：`~/Library/Preferences/cantata/composercalendar.json`
@@ -19,7 +32,6 @@
      ]
    }
    ```
-   `name` 用作曲家标签里常见的西文本名（与 `context/composertable.cpp` 的规范名一致最稳妥），
    `zh` 可选、中文界面下显示，在世作曲家不写 `died`。2 月 29 日出生的（罗西尼）在平年顺延到 3 月 1 日显示。
 
 2. **十大名作**：由已配置的 LLM 给出（prompt 上下文 `composer-works-v1`，见 `network/translationservice.cpp`），
@@ -44,4 +56,5 @@
 | `playlists/composerdaymodel.{h,cpp}` | 两级模型：作曲家 → 作品 |
 | `playlists/composerdaypage.{h,cpp}` | 页面：MPD 搜索 + LLM 调用的编排 |
 | `playlists/composercalendar.json` | 内置纪念日日历 |
+| `scripts/gen-composer-calendar.py` | 从 Wikidata 重新生成日历 |
 | `tests/composerday_test.cpp` | 单元测试：`cmake -S tests -B build-tests && cmake --build build-tests && ./build-tests/composerday_test` |

@@ -31,6 +31,8 @@
 #include <QDate>
 #include <QList>
 
+class QTimer;
+
 // "Composer of the Day": the composers whose birth or death anniversary is
 // today, each with their ten most famous works and one recording of each
 // taken from the library. The list only ever holds today's composers - it is
@@ -52,6 +54,7 @@ public Q_SLOTS:
 	void refresh() override;
 
 private Q_SLOTS:
+	void dayChanged();
 	void searchResponse(const QString& id, const QList<Song>& songs);
 	void worksReady(const QString& source, const QString& context, const QString& translation);
 	void connectionStateChanged(bool connected);
@@ -61,6 +64,7 @@ private:
 	void controlActions() override;
 	void addSelectionToPlaylist(const QString& name, int action, quint8 priority, bool decreasePriority) override;
 	void rebuild(bool force);
+	void scheduleDayChange();
 	void startLookup(int index);
 	void maybeFinish(int index);
 	void cancelLookups();
@@ -83,6 +87,9 @@ private:
 	QList<ComposerDay::Composer> calendar;
 	QList<Lookup> lookups;
 	QDate builtFor;
+	// Fires just after midnight, so a page left open moves on to the new
+	// day's composers.
+	QTimer* dayTimer;
 	// Bumped on every rebuild, so late replies to a previous day's (or a
 	// cancelled) lookup are ignored.
 	quint32 generation = 0;

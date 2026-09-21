@@ -66,9 +66,11 @@ QList<Composer> parseCalendar(const QByteArray& json);
 // The anniversaries falling on "date"'s month/day - February 29 birthdays
 // (Rossini) are also reported on March 1 of a non-leap year, so they are not
 // skipped three years out of four. Death anniversaries come first (the more
-// commonly commemorated of the two), each group ordered oldest-first; an
-// anniversary in the future relative to "date" (a composer born on this day
-// but after "date"'s year) is never reported.
+// commonly commemorated of the two); within each group the calendar's own
+// order is kept, which puts the most famous composers first (see
+// scripts/gen-composer-calendar.py). An anniversary in the future relative
+// to "date" (a composer born on this day but after "date"'s year) is never
+// reported.
 QList<Anniversary> anniversariesFor(const QList<Composer>& composers, const QDate& date);
 
 // A work named by the LLM (or derived from the library).

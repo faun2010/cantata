@@ -137,9 +137,6 @@ QList<ComposerDay::Anniversary> ComposerDay::anniversariesFor(const QList<Compos
 		}
 	}
 
-	auto oldestFirst = [](const Anniversary& a, const Anniversary& b) { return a.date == b.date ? a.name < b.name : a.date < b.date; };
-	std::sort(deaths.begin(), deaths.end(), oldestFirst);
-	std::sort(births.begin(), births.end(), oldestFirst);
 	return deaths + births;
 }
 

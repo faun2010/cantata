@@ -69,6 +69,21 @@ private Q_SLOTS:
 		QVERIFY(found.at(1).birth);
 	}
 
+	void calendarOrderIsKeptWithinEachGroup()
+	{
+		QList<ComposerDay::Composer> composers;
+		ComposerDay::Composer famous;
+		famous.name = QStringLiteral("Famous");
+		famous.died = QStringLiteral("1950-09-20");
+		ComposerDay::Composer obscure;
+		obscure.name = QStringLiteral("Obscure");
+		obscure.died = QStringLiteral("1700-09-20");
+		composers << famous << obscure;
+		const QList<ComposerDay::Anniversary> found = ComposerDay::anniversariesFor(composers, QDate(2026, 9, 20));
+		QCOMPARE(found.count(), 2);
+		QCOMPARE(found.at(0).name, QLatin1String("Famous"));
+	}
+
 	void februaryTwentyNinthFallsBackToMarchFirst()
 	{
 		QVERIFY(!ComposerDay::anniversariesFor(calendar(), QDate(2026, 3, 1)).isEmpty());
@@ -88,8 +103,18 @@ private Q_SLOTS:
 		QFile file(QLatin1String(CANTATA_CALENDAR));
 		QVERIFY(file.open(QIODevice::ReadOnly));
 		const QList<ComposerDay::Composer> composers = ComposerDay::parseCalendar(file.readAll());
-		QVERIFY(composers.count() > 100);
-		QCOMPARE(ComposerDay::anniversariesFor(composers, QDate(2026, 9, 20)).count(), 1);
+		QVERIFY(composers.count() > 500);
+		// The point of the generated calendar: nearly every day has somebody.
+		int covered = 0;
+		for (QDate day(2024, 1, 1); day.year() == 2024; day = day.addDays(1)) {
+			if (!ComposerDay::anniversariesFor(composers, day).isEmpty()) ++covered;
+		}
+		QVERIFY2(covered > 330, qPrintable(QString::number(covered)));
+		// Calendar order is fame order: Sibelius heads September 20, ahead of
+		// Sarasate who died the same day.
+		const QList<ComposerDay::Anniversary> today = ComposerDay::anniversariesFor(composers, QDate(2026, 9, 20));
+		QVERIFY(today.count() >= 2);
+		QCOMPARE(today.first().name, QLatin1String("Jean Sibelius"));
 	}
 
 	void parseWorksReadsObjectsStringsAndFences()

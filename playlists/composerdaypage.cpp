@@ -30,10 +30,12 @@
 #include "support/configuration.h"
 #include "support/utils.h"
 #include "widgets/icons.h"
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QLocale>
 #include <QStandardPaths>
+#include <QTimer>
 
 static const QLatin1String constWorksContext("composer-works-v1");
 
@@ -86,6 +88,10 @@ ComposerDayPage::ComposerDayPage(QWidget* p)
 	Configuration config(metaObject()->className());
 	view->load(config);
 	calendar = ComposerDay::parseCalendar(readCalendar());
+
+	dayTimer = new QTimer(this);
+	dayTimer->setSingleShot(true);
+	connect(dayTimer, SIGNAL(timeout()), this, SLOT(dayChanged()));
 }
 
 ComposerDayPage::~ComposerDayPage()
@@ -109,6 +115,25 @@ void ComposerDayPage::connectionStateChanged(bool connected)
 {
 	if (connected && isVisible()) {
 		rebuild(true);
+	}
+}
+
+void ComposerDayPage::scheduleDayChange()
+{
+	// A couple of seconds past midnight, so currentDate() has rolled over.
+	const QDateTime now = QDateTime::currentDateTime();
+	const QDateTime next(now.date().addDays(1), QTime(0, 0, 2));
+	dayTimer->start((int)qBound(qint64(1000), now.msecsTo(next), qint64(24 * 60 * 60 * 1000)));
+}
+
+void ComposerDayPage::dayChanged()
+{
+	// A hidden page catches up in showEvent(), so only rebuild a visible one.
+	if (isVisible()) {
+		rebuild(false);
+	}
+	else {
+		scheduleDayChange();
 	}
 }
 
@@ -137,6 +162,7 @@ void ComposerDayPage::rebuild(bool force)
 	cancelLookups();
 	++generation;
 	builtFor = today;
+	scheduleDayChange();
 
 	const QList<ComposerDay::Anniversary> anniversaries = ComposerDay::anniversariesFor(calendar, today);
 	QList<ComposerDayModel::Composer> composers;
@@ -301,7 +327,13 @@ void ComposerDayPage::maybeFinish(int index)
 		}
 	}
 	view->hideSpinner();
-	view->expandAll();
+	// Only open up the composers the library can actually play; one with no
+	// recordings stays a single collapsed line rather than ten dead rows.
+	for (int row = 0; row < model.composers().count(); ++row) {
+		if (!model.composers().at(row).files().isEmpty()) {
+			view->expand(model.index(row, 0, QModelIndex()), true);
+		}
+	}
 }
 
 QStringList ComposerDayPage::selectedFiles(bool allowPlaylists) const
