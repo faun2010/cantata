@@ -61,6 +61,7 @@ private Q_SLOTS:
 	void parseTitles();
 	void parseArtistTitle();
 	void parsePage();
+	void validatePage();
 
 private:
 	static QStringList preferredLangs;

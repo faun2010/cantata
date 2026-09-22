@@ -404,6 +404,58 @@ private Q_SLOTS:
 		QCOMPARE(WorkInfo::selectSearchResult(response, work), QString("Schweigt stille, plaudert nicht, BWV 211"));
 	}
 
+	void selectSearchResultRequiresMusicEvidenceWithoutGenre()
+	{
+		const WorkInfo::Candidate work = deriveW(QStringLiteral("Dave Heath"), QStringLiteral("Atlantis"));
+		QVERIFY(work.genreKeyword.isEmpty());
+		const QByteArray unrelated = R"json({"query":{"search":[
+			{"title":"Dave Heath","snippet":"Dave Heath was an American photographer."},
+			{"title":"Atlantis (novel)","snippet":"Atlantis is a novel. Dave Heath composed music inspired by it."},
+			{"title":"Dave Heath (composer)","snippet":"Dave Heath is a composer. Atlantis is a composition for flute."},
+			{"title":"List of compositions by Dave Heath","snippet":"Atlantis is a composition by Dave Heath."}
+		]}})json";
+		QVERIFY(WorkInfo::selectSearchResult(unrelated, work).isEmpty());
+		const QByteArray musical = R"json({"query":{"search":[
+			{"title":"Atlantis","snippet":"Atlantis is a novel mentioning Dave Heath."},
+			{"title":"Atlantis (composition)","snippet":"Atlantis is a composition by British composer Dave Heath."}
+		]}})json";
+		QCOMPARE(WorkInfo::selectSearchResult(musical, work), QString("Atlantis (composition)"));
+	}
+
+	void selectSearchResultAcceptsMusicalDefinitionWithoutGenre()
+	{
+		const WorkInfo::Candidate work = deriveW(QStringLiteral("Claude Debussy"), QStringLiteral("La mer"));
+		QVERIFY(work.genreKeyword.isEmpty());
+		const QByteArray response = R"json({"query":{"search":[
+			{"title":"Claude Debussy","snippet":"Debussy was a French composer."},
+			{"title":"La mer","snippet":"La mer is an orchestral work by Claude Debussy."}
+		]}})json";
+		QCOMPARE(WorkInfo::selectSearchResult(response, work), QString("La mer"));
+		const WorkInfo::Candidate ballet = deriveW(QStringLiteral("Prokofiev"), QStringLiteral("Cinderella"));
+		const QByteArray adaptation = R"json({"query":{"search":[
+			{"title":"Cinderella","snippet":"Cinderella is a ballet based on a novel, with music by Prokofiev."}
+		]}})json";
+		QCOMPARE(WorkInfo::selectSearchResult(adaptation, ballet), QString("Cinderella"));
+	}
+
+	void selectSearchResultRejectsNonMusicalGenreHomonym()
+	{
+		const WorkInfo::Candidate work = deriveW(QStringLiteral("Example"), QStringLiteral("Suite"));
+		const QByteArray response = R"json({"query":{"search":[
+			{"title":"Suite","snippet":"Suite is a software package by Example."}
+		]}})json";
+		QVERIFY(WorkInfo::selectSearchResult(response, work).isEmpty());
+	}
+
+	void selectSearchResultRejectsListsWithCatalogueMatch()
+	{
+		const WorkInfo::Candidate work = deriveW(QStringLiteral("Bach"), QStringLiteral("Coffee Cantata BWV 211"));
+		const QByteArray response = R"json({"query":{"search":[
+			{"title":"List of recordings of BWV 211","snippet":"Coffee Cantata by Bach."}
+		]}})json";
+		QVERIFY(WorkInfo::selectSearchResult(response, work).isEmpty());
+	}
+
 	void selectSearchResultPrefersSnippetCatalogueOverTitleOnlyMatch()
 	{
 		const WorkInfo::Candidate work = deriveW(QStringLiteral("Ludwig van Beethoven"), QStringLiteral("Piano Concerto No.5, Op.73 'Emperor' (Serkin - 1981)"));

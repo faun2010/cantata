@@ -59,6 +59,45 @@ private Q_SLOTS:
 		const auto composer = QJsonDocument::fromJson(R"json({"query":{"pages":[{"ns":0,"title":"Dmitri Shostakovich","pageprops":{"wikibase-shortdesc":"Russian composer and pianist (1906-1975)"}}]}})json").object();
 		QCOMPARE(ArtistLookup::biographyTitle(composer, QStringLiteral("Dmitry Shostakovich")), QString("Dmitri Shostakovich"));
 	}
+	void musicalMetadata_data()
+	{
+		QTest::addColumn<QString>("title");
+		QTest::addColumn<QString>("description");
+		QTest::addColumn<bool>("biography");
+		QTest::addColumn<bool>("accepted");
+		QTest::newRow("heath-photographer") << "Dave Heath" << "American documentary and street photographer" << true << false;
+		QTest::newRow("heath-composer") << "Dave Heath (composer)" << "British composer and flautist" << true << true;
+		QTest::newRow("flute-player") << "Dave Heath" << "British flautist" << true << true;
+		QTest::newRow("visual-artist") << "Example (artist)" << "American visual artist" << true << false;
+		QTest::newRow("novel") << "A Work" << "British novel" << false << false;
+		QTest::newRow("film") << "A Work" << "American film" << false << false;
+		QTest::newRow("album") << "A Work" << "Studio album by a British band" << false << true;
+		QTest::newRow("concerto") << "A Work" << "Violin concerto by Dave Heath" << false << true;
+		QTest::newRow("no-evidence") << "Dave Heath" << "" << true << false;
+		QTest::newRow("chinese") << "音乐家" << "英国作曲家" << true << true;
+	}
+	void musicalMetadata()
+	{
+		QFETCH(QString, title);
+		QFETCH(QString, description);
+		QFETCH(bool, biography);
+		QFETCH(bool, accepted);
+		QJsonObject page{{"ns", 0}, {"title", title}, {"pageprops", QJsonObject{{"wikibase-shortdesc", description}}},
+		                 {"extract", "A photographer who photographed a composer, musician and orchestra."}};
+		auto response = [&]() { return QJsonObject{{"query", QJsonObject{{"pages", QJsonArray{page}}}}}; };
+		QCOMPARE(ArtistLookup::musicalPage(response(), biography), accepted);
+		if (biography) QCOMPARE(!ArtistLookup::biographyTitle(response(), title).isEmpty(), accepted);
+		page.insert("pageprops", QJsonObject{{"disambiguation", ""}});
+		QVERIFY(!ArtistLookup::musicalPage(response(), biography));
+	}
+	void musicalCategories()
+	{
+		QJsonObject page{{"ns", 0}, {"title", "Dave Heath"},
+		                 {"categories", QJsonArray{QJsonObject{{"title", "Category:British flautists"}}}}};
+		const QJsonObject response{{"query", QJsonObject{{"pages", QJsonArray{page}}}}};
+		QVERIFY(ArtistLookup::musicalPage(response, true));
+		QVERIFY(!ArtistLookup::musicalPage(response, false));
+	}
 	void composerPortraitRequiresMatchingIdentity()
 	{
 		auto response = [](QJsonObject page) {

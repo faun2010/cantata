@@ -55,7 +55,7 @@ static const char* constNameKey = "name";
 
 const int ArtistView::constCacheAge = 0;// 0 => dont automatically clean cache
 const QLatin1String ArtistView::constCacheDir("artists/");
-const QLatin1String ArtistView::constInfoExt(".html.gz");
+const QLatin1String ArtistView::constInfoExt(".music-v2.html.gz");
 const QLatin1String ArtistView::constSimilarInfoExt(".txt");
 
 static QString cacheFileName(const QString& artist, const QString& lang, bool similar, bool createDir)

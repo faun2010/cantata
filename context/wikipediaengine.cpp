@@ -386,9 +386,10 @@ void WikipediaEngine::requestArtistTitle(const QStringList& query, const QString
 	q.addQueryItem(QStringLiteral("action"), QStringLiteral("query"));
 	q.addQueryItem(QStringLiteral("titles"), query.first());
 	q.addQueryItem(QStringLiteral("redirects"), QStringLiteral("1"));
-	q.addQueryItem(QStringLiteral("prop"), QStringLiteral("pageprops|extracts"));
+	q.addQueryItem(QStringLiteral("prop"), QStringLiteral("pageprops|extracts|categories"));
 	q.addQueryItem(QStringLiteral("format"), QStringLiteral("json"));
 	q.addQueryItem(QStringLiteral("formatversion"), QStringLiteral("2"));
+	q.addQueryItem(QStringLiteral("cllimit"), QStringLiteral("max"));
 	if (introOnly) q.addQueryItem(QStringLiteral("exintro"), QStringLiteral("1"));
 	url.setQuery(q);
 	job = NetworkAccessManager::self()->get(url);
@@ -583,7 +584,8 @@ void WikipediaEngine::getPage(const QStringList& query, Mode mode, const QString
 		// bare name is usually a disambiguation page listing a namesake who
 		// never wrote a note - see parsePage().
 		patterns = tr("composer|conductor|artist|band|singer|vocalist|musician", "Search pattern for an artist or band, separated by |").split("|", CANTATA_SKIP_EMPTY);
-		englishPatterns = QString(QLatin1String("composer|conductor|artist|band|singer|vocalist|musician")).split("|");
+		englishPatterns = QString(QLatin1String("composer|conductor|band|singer|vocalist|musician|flautist|flutist|pianist")).split("|");
+		if (lang == QLatin1String("de")) patterns.append(QStringLiteral("Komponist"));
 		break;
 	case Album:
 		patterns = tr("album|score|soundtrack", "Search pattern for an album, separated by |").split("|", CANTATA_SKIP_EMPTY);
@@ -646,7 +648,15 @@ void WikipediaEngine::getPage(const QStringList& query, Mode mode, const QString
 	// TODO: If we fail to find a match, prompt user???
 	if (-1 == index) {
 		DBUG << "Failed to find match";
-		emit searchResult(QString(), QString());
+		QRegularExpression regex(QLatin1Char('^') + lang + QLatin1String(".*$"));
+		const int languageIndex = preferredLangs.indexOf(regex);
+		titles.clear();
+		if (languageIndex >= 0 && languageIndex + 1 < preferredLangs.size()) {
+			requestTitles(query, mode, getPrefix(preferredLangs.at(languageIndex + 1)));
+		}
+		else {
+			emit searchResult(hintFallback, hintFallbackLang);
+		}
 		return;
 	}
 	const QString title = titles.takeAt(index);
@@ -658,14 +668,45 @@ void WikipediaEngine::getPage(const QStringList& query, Mode mode, const QString
 		return;
 	}
 
-	QUrl url;
-	url.setScheme(QLatin1String("https"));
-	url.setHost(lang + ".wikipedia.org");
-	url.setPath("/wiki" + wikipediaSpecialExport(lang) + title);
+	QUrl url("https://" + lang + ".wikipedia.org/w/api.php");
+	QUrlQuery metadata;
+	metadata.addQueryItem("action", "query");
+	metadata.addQueryItem("titles", title);
+	metadata.addQueryItem("redirects", "1");
+	metadata.addQueryItem("prop", "pageprops|categories");
+	metadata.addQueryItem("cllimit", "max");
+	metadata.addQueryItem("format", "json");
+	metadata.addQueryItem("formatversion", "2");
+	url.setQuery(metadata);
 	job = NetworkAccessManager::self()->get(url);
 	job->setProperty(constModeProperty, (int)mode);
 	job->setProperty(constQueryProperty, query);
-	DBUG << url.toString();
+	connect(job, &NetworkJob::finished, this, &WikipediaEngine::validatePage);
+}
+
+void WikipediaEngine::validatePage()
+{
+	NetworkJob* reply = getReply(sender());
+	if (!reply) return;
+	const QStringList query = reply->property(constQueryProperty).toStringList();
+	const Mode mode = (Mode)reply->property(constModeProperty).toInt();
+	const QString lang = getLang(reply->url());
+	const QJsonObject root = QJsonDocument::fromJson(reply->readAll()).object();
+	const bool accepted = mode == Artist
+	    ? !ArtistLookup::biographyTitle(root, query.value(0)).isEmpty()
+	    : ArtistLookup::musicalPage(root, false);
+	if (!reply->ok() || !accepted) {
+		getPage(query, mode, lang);
+		return;
+	}
+	lastTitle = ArtistLookup::resolvedTitle(root);
+	QUrl url;
+	url.setScheme(QLatin1String("https"));
+	url.setHost(lang + ".wikipedia.org");
+	url.setPath("/wiki" + wikipediaSpecialExport(lang) + lastTitle);
+	job = NetworkAccessManager::self()->get(url);
+	job->setProperty(constModeProperty, (int)mode);
+	job->setProperty(constQueryProperty, query);
 	connect(job, SIGNAL(finished()), this, SLOT(parsePage()));
 }
 

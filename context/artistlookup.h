@@ -36,6 +36,23 @@ inline QString resolvedTitle(const QJsonObject& response)
 	return page.value(QStringLiteral("title")).toString();
 }
 
+// Validate structured page metadata, never incidental mentions in the article
+// body (a photographer may have photographed a musician).
+inline bool musicalPage(const QJsonObject& response, bool biography)
+{
+	if (resolvedTitle(response).isEmpty()) return false;
+	const auto page = response.value(QStringLiteral("query")).toObject().value(QStringLiteral("pages")).toArray().first().toObject();
+	QString metadata = page.value(QStringLiteral("pageprops")).toObject().value(QStringLiteral("wikibase-shortdesc")).toString();
+	for (const auto& category : page.value(QStringLiteral("categories")).toArray()) {
+		metadata += QLatin1Char('\n') + category.toObject().value(QStringLiteral("title")).toString();
+	}
+	static const QRegularExpression roles(QStringLiteral(
+	    "\\b(composers?|musicians?|pianists?|violinists?|cellists?|conductors?|singers?|vocalists?|songwriters?|rappers?|guitarists?|bassists?|drummers?|flautists?|flutists?|saxophonists?|organists?|orchestras?|choirs?|musical groups?|rock bands?|pop bands?|jazz bands?|musical duos?|record producers?|Komponist|Flötist)\\b|作曲家|音乐家|音樂家|歌手|乐团|樂團|指挥家|指揮家"), QRegularExpression::CaseInsensitiveOption);
+	static const QRegularExpression works(QStringLiteral(
+	    "\\b(albums?|songs?|symphon(y|ies)|concertos?|sonatas?|cantatas?|operas?|ballets?|overtures?|musical compositions?|compositions by|soundtracks?)\\b|\\bsuites? \\(music\\)|专辑|專輯|歌曲|交响曲|交響曲|协奏曲|協奏曲|奏鸣曲|奏鳴曲|歌剧|歌劇|乐曲|樂曲"), QRegularExpression::CaseInsensitiveOption);
+	return (biography ? roles : works).match(metadata).hasMatch();
+}
+
 inline QString biographyTitle(const QJsonObject& response, const QString& requestedName)
 {
 	const QString title = resolvedTitle(response);
@@ -46,10 +63,7 @@ inline QString biographyTitle(const QJsonObject& response, const QString& reques
 	// An exact title/redirect alone can lead to a namesake journalist or
 	// politician. Unknown names need musical identity evidence; otherwise
 	// let the existing role-qualified search and work hints disambiguate.
-	const auto page = response.value(QStringLiteral("query")).toObject().value(QStringLiteral("pages")).toArray().first().toObject();
-	const QString description = page.value(QStringLiteral("pageprops")).toObject().value(QStringLiteral("wikibase-shortdesc")).toString();
-	static const QRegularExpression musicRole(QStringLiteral("\\b(composer|musician|pianist|violinist|conductor|singer|band|orchestra)\\b"), QRegularExpression::CaseInsensitiveOption);
-	return musicRole.match(description).hasMatch() ? title : QString();
+	return musicalPage(response, true) ? title : QString();
 }
 
 inline QUrl composerImageUrl(const QJsonObject& response, const QString& requestedName)
