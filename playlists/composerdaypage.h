@@ -26,12 +26,14 @@
 
 #include "composerday.h"
 #include "composerdaymodel.h"
+#include "context/recommendedrecordings.h"
 #include "mpd-interface/song.h"
 #include "widgets/singlepagewidget.h"
 #include <QDate>
 #include <QList>
 
 class QTimer;
+class NetworkJob;
 
 // "Composer of the Day": the composers whose birth or death anniversary is
 // today, each with their ten most famous works and one recording of each
@@ -66,6 +68,8 @@ private:
 	void rebuild(bool force);
 	void scheduleDayChange();
 	void startLookup(int index);
+	void loadDay(bool birth);
+	void populate();
 	void maybeFinish(int index);
 	void cancelLookups();
 
@@ -74,10 +78,12 @@ private:
 	// and the LLM's list of their most famous works.
 	struct Lookup {
 		ComposerDay::Anniversary anniversary;
+		ComposerDayModel::Composer result;
 		QList<Song> songs;
 		QList<ComposerDay::Track> tracks;
 		QList<ComposerDay::Work> works;
 		QString llmSource;
+		int pendingSearches = 0;
 		bool haveTracks = false;
 		bool haveWorks = false;
 		bool finished = false;
@@ -87,6 +93,10 @@ private:
 	QList<ComposerDay::Composer> calendar;
 	QList<Lookup> lookups;
 	QDate builtFor;
+	QList<NetworkJob*> dayJobs;
+	QList<ComposerDay::Anniversary> dayPeople;
+	int pendingDays = 0;
+	RecommendedRecordings::Dataset recordings;
 	// Fires just after midnight, so a page left open moves on to the new
 	// day's composers.
 	QTimer* dayTimer;

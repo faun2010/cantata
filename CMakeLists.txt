@@ -531,6 +531,7 @@ target_sources(
         playlists/storedplaylistspage.cpp
         playlists/rulesplaylists.cpp
         playlists/smartfilter.cpp
+        playlists/dayrecordings.cpp
         playlists/composerday.cpp
         playlists/composerdaymodel.cpp
         playlists/composerdaypage.cpp

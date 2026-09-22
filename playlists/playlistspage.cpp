@@ -45,7 +45,7 @@ PlaylistsPage::PlaylistsPage(QWidget* p)
 	addPage(SmartPlaylists::self()->name(), SmartPlaylists::self()->icon(), SmartPlaylists::self()->title(), SmartPlaylists::self()->descr(), smart);
 	composerDay = new ComposerDayPage(this);
 	connect(composerDay, SIGNAL(error(QString)), this, SIGNAL(error(QString)));
-	addPage(QLatin1String("composerday"), Icon::fa(fa::fa_solid, fa::fa_birthday_cake), tr("Composer of the Day"), tr("Today's anniversaries, work by work"), composerDay);
+	addPage(QLatin1String("composerday"), Icon::fa(fa::fa_solid, fa::fa_birthday_cake), tr("Today in Music"), tr("Birthdays and death anniversaries from On This Day"), composerDay);
 	connect(stored, SIGNAL(addToDevice(QString, QString, QList<Song>)), SIGNAL(addToDevice(QString, QString, QList<Song>)));
 	Configuration config(metaObject()->className());
 	load(config);

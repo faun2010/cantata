@@ -151,3 +151,8 @@ target_link_libraries(composerday_test PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
 )
 add_test(NAME composerday_test COMMAND composerday_test)
+
+add_executable(dayrecordings_test dayrecordings_test.cpp ../playlists/dayrecordings.cpp ../playlists/composerday.cpp ../context/recommendedrecordings.cpp ../context/workinfo.cpp ../context/composertable.cpp)
+target_include_directories(dayrecordings_test PRIVATE ..)
+target_link_libraries(dayrecordings_test PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Test)
+add_test(NAME dayrecordings_test COMMAND dayrecordings_test)
