@@ -1,0 +1,35 @@
+context/artistlookup.h
+  s_da9baa7fcb3d0e::t_9db4212f871daf 4,6-7,21-68,120-139,144-145,148-150
+gui/artworkquality.h
+  s_da9baa7fcb3d0e::t_ea0ac210ba19e7 46-62
+tests/artistlookup_test.cpp
+  s_da9baa7fcb3d0e::t_74f8282c9119f7 4-5,10-31,125-174,181
+tests/artworkquality_test.cpp
+  s_da9baa7fcb3d0e::t_2cb5713981d8ad 8-22
+gui/coverdialog.cpp
+  s_05e00573289c35::t_9fd5bdab3a62f0 1213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.7.5",
+  "base_commit_sha": "54538fc89c40b1f71bb9912264c36b3497924720",
+  "prompts": {},
+  "sessions": {
+    "s_05e00573289c35": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c69d-f4ed-79b2-b762-67734fe68f36",
+        "model": "unknown"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    },
+    "s_da9baa7fcb3d0e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ae47959-5180-4060-91d0-826f9136d440",
+        "model": "claude-opus-5"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    }
+  }
+}
