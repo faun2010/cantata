@@ -10,6 +10,7 @@
  */
 
 #include "composertable.h"
+#include "composeridentities.h"
 #include <QMap>
 #include <QRegularExpression>
 #include <QStringList>
@@ -305,7 +306,7 @@ QString resolveGluedToken(const QString& token)
 
 }// namespace
 
-QString resolve(const QString& rawText)
+static QString resolveBuiltin(const QString& rawText)
 {
 	QString text = rawText.trimmed();
 	if (text.isEmpty()) {
@@ -355,7 +356,7 @@ QString resolve(const QString& rawText)
 	return resolveSurnameAndGiven(tokens.first(), tokens.mid(1));
 }
 
-QString biographyName(const QString& rawText)
+static QString biographyBuiltin(const QString& rawText)
 {
 	QString text = rawText.trimmed();
 	// Dates are metadata, but a role/ensemble annotation is not a person.
@@ -394,6 +395,29 @@ QString biographyName(const QString& rawText)
 		}
 	}
 	return QString();
+}
+
+QString resolve(const QString& text)
+{
+	bool conflict = false;
+	auto person = ComposerIdentities::lookup(text, &conflict);
+	if (conflict) return {};
+	if (!person.isEmpty()) return person.value("canonical").toString();
+	const QString builtin = resolveBuiltin(text);
+	person = ComposerIdentities::lookup(builtin, &conflict);
+	return conflict ? QString() : person.isEmpty() ? builtin
+												   : person.value("canonical").toString();
+}
+QString biographyName(const QString& text)
+{
+	bool conflict = false;
+	auto person = ComposerIdentities::lookup(text, &conflict);
+	if (conflict) return {};
+	if (!person.isEmpty()) return person.value("canonical").toString();
+	const QString builtin = biographyBuiltin(text);
+	person = ComposerIdentities::lookup(builtin, &conflict);
+	return conflict ? QString() : person.isEmpty() ? builtin
+												   : person.value("canonical").toString();
 }
 
 }// namespace ComposerTable

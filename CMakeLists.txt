@@ -473,6 +473,7 @@ target_sources(
         context/artistview.cpp
         context/albumview.cpp
         context/workinfo.cpp
+        context/composeridentities.cpp
         context/composertable.cpp
         context/workdossier.cpp
         context/recommendedrecordings.cpp

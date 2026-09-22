@@ -1,7 +1,10 @@
 #ifndef ARTIST_LOOKUP_H
 #define ARTIST_LOOKUP_H
 
+#include "composeridentities.h"
 #include "composertable.h"
+#include <QCryptographicHash>
+#include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QRegularExpression>
@@ -13,6 +16,54 @@ inline QString queryName(const QString& raw)
 {
 	const QString canonical = ComposerTable::biographyName(raw);
 	return canonical.isEmpty() ? raw.trimmed() : canonical;
+}
+
+inline QString portraitName(const QString& raw)
+{
+	const QString name = queryName(raw);
+	if (name == raw.trimmed() && !name.contains(QLatin1Char(' '))) {
+		const QString composer = ComposerTable::resolve(name);
+		if (!composer.isEmpty()) return composer;
+	}
+	return name;
+}
+
+inline QString wikipediaName(const QString& raw)
+{
+	const auto person = ComposerIdentities::lookup(raw);
+	const QString title = person.value("wikipedia").toObject().value("en").toString();
+	return title.isEmpty() ? portraitName(raw) : title;
+}
+
+// Prefer curated authority IDs over any name-only service result.
+inline QString musicBrainzId(const QString& raw)
+{
+	bool conflict = false;
+	const auto person = ComposerIdentities::lookup(raw, &conflict);
+	if (conflict) return {};
+	const QString id = person.value("musicbrainz").toString();
+	static const QRegularExpression uuid(QStringLiteral("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"));
+	if (uuid.match(id).hasMatch()) return id.toLower();
+	if (!person.isEmpty()) return {};
+	// British composer/flautist, not either of the same-name bass players.
+	// https://musicbrainz.org/artist/e252e2e9-5cca-4bb6-a787-f9236d3a91e0
+	// https://www.discogs.com/artist/202611 (David C. Heath, born 1956)
+	const QString key = ComposerIdentities::nameKey(raw);
+	if (key == QLatin1String("daveheath") || key == QLatin1String("davidcheath"))
+		return QStringLiteral("e252e2e9-5cca-4bb6-a787-f9236d3a91e0");
+	return {};
+}
+
+// A changed identity must invalidate both the original and scaled artwork.
+// Older name-only downloads remain on disk but are no longer trusted.
+inline QString imageCacheToken(const QString& raw)
+{
+	bool conflict = false;
+	const auto person = ComposerIdentities::lookup(raw, &conflict);
+	const QByteArray identity = raw.toUtf8() + '\n' + queryName(raw).toUtf8() + '\n'
+	    + musicBrainzId(raw).toUtf8() + '\n' + QJsonDocument(person).toJson(QJsonDocument::Compact)
+	    + (conflict ? "conflict" : "");
+	return QStringLiteral("artist-identity-v3-") + QString::fromLatin1(QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex());
 }
 
 inline bool isTagCorrection(const QString& html)
@@ -66,14 +117,37 @@ inline QString biographyTitle(const QJsonObject& response, const QString& reques
 	return musicalPage(response, true) ? title : QString();
 }
 
+inline QUrl portraitImageUrl(const QJsonObject& response, const QString& requestedName)
+{
+	QString title = resolvedTitle(response);
+	if (title.isEmpty() || !musicalPage(response, true)) return {};
+	title.remove(QRegularExpression(QStringLiteral("\\s*\\((?:composer|musician|pianist|conductor|singer)\\)$"), QRegularExpression::CaseInsensitiveOption));
+	const QString requested = portraitName(requestedName);
+	bool redirected = false;
+	for (const auto& value : response.value("query").toObject().value("redirects").toArray()) {
+		const auto redirect = value.toObject();
+		if (ComposerIdentities::nameKey(redirect.value("from").toString()) == ComposerIdentities::nameKey(requested)
+		    && redirect.value("to").toString() == resolvedTitle(response)) redirected = true;
+	}
+	if (!redirected && ComposerIdentities::nameKey(title) != ComposerIdentities::nameKey(requested)
+	    && (ComposerTable::biographyName(title).isEmpty() || ComposerTable::biographyName(title) != ComposerTable::biographyName(requested))) return {};
+	const auto page = response.value("query").toObject().value("pages").toArray().first().toObject();
+	const QUrl url(page.value("thumbnail").toObject().value("source").toString());
+	return url.scheme() == QLatin1String("https") && url.userInfo().isEmpty()
+	    && (url.host() == QLatin1String("upload.wikimedia.org") || url.host() == QLatin1String("thumb.wikimedia.org")) ? url : QUrl();
+}
+
 inline QUrl composerImageUrl(const QJsonObject& response, const QString& requestedName)
 {
 	const QString expected = ComposerTable::biographyName(requestedName);
 	const QString title = resolvedTitle(response);
-	if (expected.isEmpty() || title.isEmpty() || ComposerTable::biographyName(title) != expected) return QUrl();
+	if (expected.isEmpty() || title.isEmpty() || ComposerTable::biographyName(title) != expected
+	    || !musicalPage(response, true)) return QUrl();
 	const QJsonObject page = response.value(QStringLiteral("query")).toObject().value(QStringLiteral("pages")).toArray().first().toObject();
 	const QUrl url(page.value(QStringLiteral("thumbnail")).toObject().value(QStringLiteral("source")).toString());
-	return url.isValid() && url.scheme() == QLatin1String("https") && url.host() == QLatin1String("upload.wikimedia.org") ? url : QUrl();
+	const bool trustedHost = url.host() == QLatin1String("upload.wikimedia.org")
+			|| url.host() == QLatin1String("thumb.wikimedia.org");
+	return url.isValid() && url.scheme() == QLatin1String("https") && trustedHost ? url : QUrl();
 }
 }
 #endif

@@ -6,13 +6,28 @@ class ArtistImageProviderTest : public QObject {
 	Q_OBJECT
 
 private Q_SLOTS:
+	void skipsDeprecatedAndDuplicateCommonsImages()
+	{
+		const QByteArray data = R"({"entities":{"Q1":{"claims":{"P18":[{"rank":"deprecated","mainsnak":{"datavalue":{"value":"old.jpg"}}},{"mainsnak":{"datavalue":{"value":"portrait.jpg"}}},{"mainsnak":{"datavalue":{"value":"portrait.jpg"}}},{"mainsnak":{"datavalue":{"value":"photo.jpg"}}}]}}}})";
+		QCOMPARE(ArtistImageProvider::commonsImageFileNames(data, "Q1"), QStringList({"portrait.jpg", "photo.jpg"}));
+		QVERIFY(ArtistImageProvider::commonsImageFileNames(data, "Q2").isEmpty());
+	}
+	void searchesCanonicalNameAndAlias()
+	{
+		QCOMPARE(ArtistImageProvider::artistSearchQuery("Gavriil Popov"), QStringLiteral("artist:\"Gavriil Popov\" OR alias:\"Gavriil Popov\""));
+		QCOMPARE(ArtistImageProvider::artistSearchQuery(QStringLiteral("A\"B")), QStringLiteral("artist:\"A\\\"B\" OR alias:\"A\\\"B\""));
+	}
 	void acceptsOnlyExactLastFmArtist();
 	void acceptsAliasOnlyWhenMusicBrainzMatchIsUnique();
 	void refusesAmbiguousMusicBrainzName();
+	void refusesLowerScoreNamesake();
+	void refusesIncompleteMusicBrainzResults();
+	void requiresTrustedMusicBrainzMatch();
 	void acceptsMotorheadDiacriticVariant();
 	void prefersExactMusicBrainzMatchOverDiacriticVariant();
 	void refusesAmbiguousDiacriticMusicBrainzName();
 	void verifiesMusicBrainzIdBeforeWikidataRelation();
+	void refusesConflictingWikidataRelations();
 	void extractsCommonsP18AndDistinguishesRetryStates();
 	void normalizesUnicodeNames();
 	void aggressiveNameKeyFolding();
@@ -35,6 +50,30 @@ void ArtistImageProviderTest::acceptsAliasOnlyWhenMusicBrainzMatchIsUnique()
 void ArtistImageProviderTest::refusesAmbiguousMusicBrainzName()
 {
 	QByteArray response = R"({"artists":[{"id":"id-1","score":100,"name":"John Williams"},{"id":"id-2","score":100,"name":"John Williams"}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(response, "John Williams").isEmpty());
+}
+
+void ArtistImageProviderTest::refusesLowerScoreNamesake()
+{
+	const QByteArray response = R"({"artists":[{"id":"id-1","score":100,"name":"John Williams"},{"id":"id-2","score":92,"name":"John Williams"}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(response, "John Williams").isEmpty());
+	const QByteArray aliases = R"({"artists":[{"id":"id-1","score":100,"name":"Motörhead"},{"id":"id-2","score":65,"name":"Different artist","aliases":[{"name":"Motōrhead"}]}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(aliases, "Motorhead").isEmpty());
+}
+
+void ArtistImageProviderTest::refusesIncompleteMusicBrainzResults()
+{
+	const QByteArray firstPage = R"({"count":6,"offset":0,"artists":[{"id":"id-1","score":100,"name":"John Williams"}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(firstPage, "John Williams").isEmpty());
+	const QByteArray laterPage = R"({"count":1,"offset":5,"artists":[{"id":"id-1","score":100,"name":"John Williams"}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(laterPage, "John Williams").isEmpty());
+	const QByteArray complete = R"({"count":1,"offset":0,"artists":[{"id":"id-1","score":100,"name":"John Williams"}]})";
+	QCOMPARE(ArtistImageProvider::uniqueMusicBrainzArtistId(complete, "John Williams"), QString("id-1"));
+}
+
+void ArtistImageProviderTest::requiresTrustedMusicBrainzMatch()
+{
+	const QByteArray response = R"({"artists":[{"id":"id-1","score":92,"name":"John Williams"},{"id":"id-2","score":100,"name":"Other person"}]})";
 	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(response, "John Williams").isEmpty());
 }
 
@@ -65,6 +104,14 @@ void ArtistImageProviderTest::verifiesMusicBrainzIdBeforeWikidataRelation()
 	QByteArray response = R"({"id":"right-id","relations":[{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q255"}}]})";
 	QCOMPARE(ArtistImageProvider::wikiDataId(response, "right-id"), QString("Q255"));
 	QVERIFY(ArtistImageProvider::wikiDataId(response, "wrong-id").isEmpty());
+}
+
+void ArtistImageProviderTest::refusesConflictingWikidataRelations()
+{
+	const QByteArray conflicting = R"({"id":"right-id","relations":[{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q255"}},{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q999"}}]})";
+	QVERIFY(ArtistImageProvider::wikiDataId(conflicting, "right-id").isEmpty());
+	const QByteArray duplicate = R"({"id":"right-id","relations":[{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q255"}},{"type":"wikidata","url":{"resource":"https://wikidata.org/wiki/Q255"}}]})";
+	QCOMPARE(ArtistImageProvider::wikiDataId(duplicate, "right-id"), QString("Q255"));
 }
 
 void ArtistImageProviderTest::extractsCommonsP18AndDistinguishesRetryStates()

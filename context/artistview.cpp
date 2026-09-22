@@ -112,6 +112,9 @@ ArtistView::ArtistView(QWidget* parent)
 	connect(originalTextAction, &QAction::toggled, this, &ArtistView::setBio);
 	connect(engine, SIGNAL(searchResult(QString, QString)), this, SLOT(searchResponse(QString, QString)));
 	connect(TranslationService::self(), &TranslationService::translationReady, this, &ArtistView::biographyTranslationReady);
+	connect(TranslationService::self(), &TranslationService::composerIdentityUpdated, this, [this](const QString& name) {
+		if (name == currentSong.artist && isVisible()) update(currentSong, true);
+	});
 	connect(Covers::self(), SIGNAL(artistImage(Song, QImage, QString)), SLOT(artistImage(Song, QImage, QString)));
 	connect(Covers::self(), SIGNAL(coverUpdated(Song, QImage, QString)), SLOT(artistImageUpdated(Song, QImage, QString)));
 	connect(text, SIGNAL(anchorClicked(QUrl)), SLOT(show(QUrl)));
@@ -197,6 +200,7 @@ void ArtistView::update(const Song& s, bool force)
 		similarArtists = QString();
 		if (!currentSong.isEmpty()) {
 			setHeader(currentSong.artist);
+			TranslationService::self()->ensureComposerIdentity(currentSong.artist);
 
 			Song s;
 			s.setArtistImageRequest();

@@ -1,10 +1,34 @@
 #include "context/artistlookup.h"
 #include <QJsonDocument>
 #include <QTest>
+#include <QTemporaryDir>
+#include <QFile>
 
 class ArtistLookupTest : public QObject {
 	Q_OBJECT
 private Q_SLOTS:
+	void portraitMusicIdentity()
+	{
+		QCOMPARE(ArtistLookup::portraitName("Chopin"), QString::fromUtf8("Frédéric Chopin"));
+		QJsonObject page{{"ns", 0}, {"title", "Gavriil Popov (composer)"},
+		    {"pageprops", QJsonObject{{"wikibase-shortdesc", "Soviet composer"}}},
+		    {"thumbnail", QJsonObject{{"source", "https://upload.wikimedia.org/portrait.jpg"}}}};
+		auto response = [&]() { return QJsonObject{{"query", QJsonObject{{"pages", QJsonArray{page}}}}}; };
+		QVERIFY(!ArtistLookup::portraitImageUrl(response(), "Gavriil Popov").isEmpty());
+		QVERIFY(ArtistLookup::portraitImageUrl(response(), "Chopin").isEmpty());
+		page["pageprops"] = QJsonObject{{"wikibase-shortdesc", "Russian politician"}};
+		QVERIFY(ArtistLookup::portraitImageUrl(response(), "Gavriil Popov").isEmpty());
+		page["title"] = "Khachaturian";
+		page["pageprops"] = QJsonObject{{"disambiguation", ""}};
+		QVERIFY(ArtistLookup::portraitImageUrl(response(), "Khachaturian").isEmpty());
+		page["title"] = "Aram Khachaturian";
+		page["pageprops"] = QJsonObject{{"wikibase-shortdesc", "Armenian composer"}};
+		auto redirected = response();
+		auto query = redirected["query"].toObject();
+		query["redirects"] = QJsonArray{QJsonObject{{"from", "Khachaturian"}, {"to", "Aram Khachaturian"}}};
+		redirected["query"] = query;
+		QVERIFY(!ArtistLookup::portraitImageUrl(redirected, "Khachaturian").isEmpty());
+	}
 	void names_data()
 	{
 		QTest::addColumn<QString>("input");
@@ -98,12 +122,63 @@ private Q_SLOTS:
 		QVERIFY(ArtistLookup::musicalPage(response, true));
 		QVERIFY(!ArtistLookup::musicalPage(response, false));
 	}
+	void portraitCacheTracksIdentityChanges()
+	{
+		QTemporaryDir dir;
+		QVERIFY(dir.isValid());
+		const QString previous = ComposerIdentities::configurationPath();
+		ComposerIdentities::setConfigurationFile(dir.filePath("identity.json"));
+		const QString before = ArtistLookup::imageCacheToken("Test Musician");
+		QFile file(dir.filePath("identity.json"));
+		QVERIFY(file.open(QIODevice::WriteOnly));
+		file.write(R"({"version":1,"people":[{"canonical":"Test Musician","imslp":"Category:Musician,_Test","aliases":[],"musicbrainz":"e252e2e9-5cca-4bb6-a787-f9236d3a91e0"}]})");
+		file.close();
+		QVERIFY(ArtistLookup::imageCacheToken("Test Musician") != before);
+		QCOMPARE(ArtistLookup::musicBrainzId("Test Musician"), QString("e252e2e9-5cca-4bb6-a787-f9236d3a91e0"));
+		ComposerIdentities::setConfigurationFile(previous);
+	}
+	void portraitIdentityAndCache()
+	{
+		QCOMPARE(ArtistLookup::musicBrainzId("Dave Heath"), QString("e252e2e9-5cca-4bb6-a787-f9236d3a91e0"));
+		QCOMPARE(ArtistLookup::musicBrainzId("Heath, Dave"), ArtistLookup::musicBrainzId("Dave Heath"));
+		QVERIFY(ArtistLookup::musicBrainzId("David Martin Heath").isEmpty());
+		QVERIFY(ArtistLookup::musicBrainzId("Heath").isEmpty());
+		QVERIFY(ArtistLookup::imageCacheToken("Dave Heath").startsWith("artist-identity-v3-"));
+		QVERIFY(ArtistLookup::imageCacheToken("Dave Heath") != ArtistLookup::imageCacheToken("David Martin Heath"));
+		const QJsonObject page{{"ns", 0}, {"title", "Alexander Borodin"},
+		    {"pageprops", QJsonObject{{"wikibase-shortdesc", "Photographer"}}},
+		    {"thumbnail", QJsonObject{{"source", "https://upload.wikimedia.org/portrait.jpg"}}}};
+		QVERIFY(ArtistLookup::composerImageUrl(QJsonObject{{"query", QJsonObject{{"pages", QJsonArray{page}}}}}, "Alexander Borodin").isEmpty());
+	}
+	void composerPortraitThumbnailHost()
+	{
+		const QStringList allowed = {
+		    "https://upload.wikimedia.org/wikipedia/commons/portrait.jpg",
+		    "https://thumb.wikimedia.org/wikipedia/commons/thumb/portrait.jpg/960px-portrait.jpg?utm_source=en.wikipedia.org"
+		};
+		const QStringList rejected = {
+		    "http://thumb.wikimedia.org/portrait.jpg",
+		    "https://thumb.wikimedia.org.example.com/portrait.jpg",
+		    "https://thumb.wikimedia.org@evil.example/portrait.jpg",
+		    "https://other.wikimedia.org/portrait.jpg"
+		};
+		for (const QString& source : allowed + rejected) {
+			QJsonObject page{{"ns", 0}, {"title", "Sergei Prokofiev"},
+		                 {"pageprops", QJsonObject{{"wikibase-shortdesc", "Russian composer"}}},
+			                 {"thumbnail", QJsonObject{{"source", source}}}};
+			const QJsonObject response{{"query", QJsonObject{{"pages", QJsonArray{page}}}}};
+			const QUrl expected = allowed.contains(source) ? QUrl(source) : QUrl();
+			QCOMPARE(ArtistLookup::composerImageUrl(response, "Sergey Prokofiev"), expected);
+			QVERIFY(ArtistLookup::composerImageUrl(response, "Sergei Rachmaninoff").isEmpty());
+		}
+	}
 	void composerPortraitRequiresMatchingIdentity()
 	{
 		auto response = [](QJsonObject page) {
 			return QJsonObject{{"query", QJsonObject{{"pages", QJsonArray{page}}}}};
 		};
 		QJsonObject page{{"ns", 0}, {"title", "Alexander Borodin"},
+		                 {"pageprops", QJsonObject{{"wikibase-shortdesc", "Russian composer"}}},
 		                 {"thumbnail", QJsonObject{{"source", "https://upload.wikimedia.org/wikipedia/commons/7/70/Borodin.jpg"}}}};
 		const QUrl expected("https://upload.wikimedia.org/wikipedia/commons/7/70/Borodin.jpg");
 		QCOMPARE(ArtistLookup::composerImageUrl(response(page), "Aleksandr Borodin"), expected);

@@ -43,5 +43,22 @@ inline bool isStarPlaceholder(const QImage& image)
 	return difference <= 16 * 16 * 3 * 1.5;
 }
 
+// Only score identity-verified images. Treat portraits of at least 320px as sufficient for artist tiles;
+// source quality breaks ties. Historical monochrome portraits remain valid.
+inline int portraitScore(const QImage& image, int sourcePriority)
+{
+	if (image.isNull() || qMin(image.width(), image.height()) < 64 || isStarPlaceholder(image)) return -1;
+	const int shortSide = qMin(image.width(), image.height());
+	if (qMax(image.width(), image.height()) > shortSide * 3) return -1;
+	const QImage sample = image.scaled(24, 24, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+	int low = 255, high = 0;
+	for (int y = 0; y < sample.height(); ++y) for (int x = 0; x < sample.width(); ++x) {
+		const int value = qGray(sample.pixel(x, y));
+		low = qMin(low, value); high = qMax(high, value);
+	}
+	if (high - low < 8) return -1;
+	return (qMin(shortSide, 320) / 32) * 1000 + sourcePriority;
+}
+
 }
 #endif
