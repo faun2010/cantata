@@ -1,11 +1,26 @@
 #include "gui/artistimageprovider.h"
 
 #include <QTest>
+#include <QTemporaryDir>
 
 class ArtistImageProviderTest : public QObject {
 	Q_OBJECT
 
 private Q_SLOTS:
+	void persistsFailedLookups()
+	{
+		QTemporaryDir dir;
+		QVERIFY(dir.isValid());
+		const QString path = dir.filePath("artist.failed");
+		QCOMPARE(ArtistImageProvider::cachedFailureTime(path), qint64(0));
+		QVERIFY(ArtistImageProvider::cacheFailure(path, 1000000));
+		QCOMPARE(ArtistImageProvider::retryState(ArtistImageProvider::cachedFailureTime(path), 1000001, 3600000), ArtistImageProvider::RetryDeferred);
+		QCOMPARE(ArtistImageProvider::retryState(ArtistImageProvider::cachedFailureTime(path), 4600000, 3600000), ArtistImageProvider::RetryExpired);
+		QFile corrupt(path);
+		QVERIFY(corrupt.open(QIODevice::WriteOnly));
+		corrupt.write("invalid"); corrupt.close();
+		QCOMPARE(ArtistImageProvider::cachedFailureTime(path), qint64(0));
+	}
 	void skipsDeprecatedAndDuplicateCommonsImages()
 	{
 		const QByteArray data = R"({"entities":{"Q1":{"claims":{"P18":[{"rank":"deprecated","mainsnak":{"datavalue":{"value":"old.jpg"}}},{"mainsnak":{"datavalue":{"value":"portrait.jpg"}}},{"mainsnak":{"datavalue":{"value":"portrait.jpg"}}},{"mainsnak":{"datavalue":{"value":"photo.jpg"}}}]}}}})";
@@ -118,6 +133,12 @@ void ArtistImageProviderTest::extractsCommonsP18AndDistinguishesRetryStates()
 {
 	QByteArray response = R"({"entities":{"Q255":{"claims":{"P18":[{"mainsnak":{"datavalue":{"value":"Beethoven.jpg"}}}]}}}})";
 	QCOMPARE(ArtistImageProvider::commonsImageFileName(response, "Q255"), QString("Beethoven.jpg"));
+	QVERIFY(ArtistImageProvider::commonsImageFileNames(response, "Q1689210").isEmpty());
+	// Henneberg's article has a score cover, but his entity has no P18 portrait.
+	const QByteArray noPortrait = R"({"entities":{"Q1689210":{"claims":{"P19":[]}}}})";
+	QVERIFY(ArtistImageProvider::commonsImageFileNames(noPortrait, "Q1689210").isEmpty());
+	const QByteArray deprecated = R"({"entities":{"Q255":{"claims":{"P18":[{"rank":"deprecated","mainsnak":{"datavalue":{"value":"Wrong.jpg"}}},{"rank":"normal","mainsnak":{"datavalue":{"value":"Beethoven.jpg"}}}]}}}})";
+	QCOMPARE(ArtistImageProvider::commonsImageFileNames(deprecated, "Q255"), QStringList{"Beethoven.jpg"});
 	QCOMPARE(ArtistImageProvider::retryState(0, 1001, 1000), ArtistImageProvider::NoRetryFailure);
 	QCOMPARE(ArtistImageProvider::retryState(1000, 1001, 1000), ArtistImageProvider::RetryDeferred);
 	QCOMPARE(ArtistImageProvider::retryState(1000, 2000, 1000), ArtistImageProvider::RetryExpired);

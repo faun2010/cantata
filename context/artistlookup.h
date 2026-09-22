@@ -56,14 +56,28 @@ inline QString musicBrainzId(const QString& raw)
 
 // A changed identity must invalidate both the original and scaled artwork.
 // Older name-only downloads remain on disk but are no longer trusted.
-inline QString imageCacheToken(const QString& raw)
+inline QString legacyImageCacheToken(const QString& raw)
 {
 	bool conflict = false;
 	const auto person = ComposerIdentities::lookup(raw, &conflict);
 	const QByteArray identity = raw.toUtf8() + '\n' + queryName(raw).toUtf8() + '\n'
 	    + musicBrainzId(raw).toUtf8() + '\n' + QJsonDocument(person).toJson(QJsonDocument::Compact)
 	    + (conflict ? "conflict" : "");
-	return QStringLiteral("artist-identity-v3-") + QString::fromLatin1(QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex());
+	return QStringLiteral("artist-identity-v4-") + QString::fromLatin1(QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex());
+}
+
+inline QString imageCacheToken(const QString& raw)
+{
+	bool conflict = false;
+	const auto person = ComposerIdentities::lookup(raw, &conflict);
+	// Translation, source annotations, and alias ordering do not change the
+	// resolved person. Include only fields that identify or locate their image.
+	const QJsonObject identity{{"raw", raw}, {"query", queryName(raw)},
+	    {"musicbrainz", musicBrainzId(raw)}, {"canonical", person.value("canonical")},
+	    {"imslp", person.value("imslp")}, {"wikipedia", person.value("wikipedia")},
+	    {"conflict", conflict}};
+	return QStringLiteral("artist-identity-v4-") + QString::fromLatin1(QCryptographicHash::hash(
+	    QJsonDocument(identity).toJson(QJsonDocument::Compact), QCryptographicHash::Sha256).toHex());
 }
 
 inline bool isTagCorrection(const QString& html)
@@ -117,7 +131,9 @@ inline QString biographyTitle(const QJsonObject& response, const QString& reques
 	return musicalPage(response, true) ? title : QString();
 }
 
-inline QUrl portraitImageUrl(const QJsonObject& response, const QString& requestedName)
+// A biography thumbnail may depict a score, building or other work. Resolve
+// the verified person first; only their Wikidata image statements are candidates.
+inline QString portraitEntityId(const QJsonObject& response, const QString& requestedName)
 {
 	QString title = resolvedTitle(response);
 	if (title.isEmpty() || !musicalPage(response, true)) return {};
@@ -132,22 +148,9 @@ inline QUrl portraitImageUrl(const QJsonObject& response, const QString& request
 	if (!redirected && ComposerIdentities::nameKey(title) != ComposerIdentities::nameKey(requested)
 	    && (ComposerTable::biographyName(title).isEmpty() || ComposerTable::biographyName(title) != ComposerTable::biographyName(requested))) return {};
 	const auto page = response.value("query").toObject().value("pages").toArray().first().toObject();
-	const QUrl url(page.value("thumbnail").toObject().value("source").toString());
-	return url.scheme() == QLatin1String("https") && url.userInfo().isEmpty()
-	    && (url.host() == QLatin1String("upload.wikimedia.org") || url.host() == QLatin1String("thumb.wikimedia.org")) ? url : QUrl();
-}
-
-inline QUrl composerImageUrl(const QJsonObject& response, const QString& requestedName)
-{
-	const QString expected = ComposerTable::biographyName(requestedName);
-	const QString title = resolvedTitle(response);
-	if (expected.isEmpty() || title.isEmpty() || ComposerTable::biographyName(title) != expected
-	    || !musicalPage(response, true)) return QUrl();
-	const QJsonObject page = response.value(QStringLiteral("query")).toObject().value(QStringLiteral("pages")).toArray().first().toObject();
-	const QUrl url(page.value(QStringLiteral("thumbnail")).toObject().value(QStringLiteral("source")).toString());
-	const bool trustedHost = url.host() == QLatin1String("upload.wikimedia.org")
-			|| url.host() == QLatin1String("thumb.wikimedia.org");
-	return url.isValid() && url.scheme() == QLatin1String("https") && trustedHost ? url : QUrl();
+	const QString id = page.value("pageprops").toObject().value("wikibase_item").toString();
+	static const QRegularExpression entityId(QStringLiteral("\\AQ[1-9][0-9]*\\z"));
+	return entityId.match(id).hasMatch() ? id : QString();
 }
 }
 #endif

@@ -257,7 +257,7 @@ CacheSettings::CacheSettings(QWidget* parent)
 	layout->addWidget(tree, row++, col, 1, 2);
 
 	new CacheItem(tr("Covers"), Utils::cacheDir(Covers::constCoverDir, false), QStringList() << "*.jpg"
-	                                                                                         << "*.png",
+	                                                                                         << "*.png" << "artist-identity-*.failed",
 	              tree,
 	              CacheItem::Type_Covers);
 	new CacheItem(tr("Scaled Covers"), Utils::cacheDir(Covers::constScaledCoverDir, false), QStringList() << "*.jpg"

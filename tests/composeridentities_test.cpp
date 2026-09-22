@@ -37,9 +37,8 @@ private slots:
 		QVERIFY(ComposerTable::biographyName("Taneyev").isEmpty());
 		QVERIFY(ComposerIdentities::hints("Sergey Taneyev biography").contains("谢尔盖"));
 		QJsonObject page{{"ns", 0}, {"title", "Sergei Taneyev"},
-		    {"pageprops", QJsonObject{{"wikibase-shortdesc", "Russian composer and pianist"}}},
-		    {"thumbnail", QJsonObject{{"source", "https://thumb.wikimedia.org/photo.jpg"}}}};
-		QVERIFY(!ArtistLookup::composerImageUrl(QJsonObject{{"query", QJsonObject{{"pages", QJsonArray{page}}}}}, "Sergey Taneyev").isEmpty());
+		    {"pageprops", QJsonObject{{"wikibase-shortdesc", "Russian composer and pianist"}, {"wikibase_item", "Q123"}}}};
+		QCOMPARE(ArtistLookup::portraitEntityId(QJsonObject{{"query", QJsonObject{{"pages", QJsonArray{page}}}}}, "Sergey Taneyev"), QString("Q123"));
 	}
 	void hotReloadAndInvalidFileProtection()
 	{

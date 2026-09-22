@@ -7,6 +7,8 @@
 #ifndef ARTIST_IMAGE_PROVIDER_H
 #define ARTIST_IMAGE_PROVIDER_H
 
+#include <QFile>
+#include <QSaveFile>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QRegularExpression>
@@ -190,6 +192,24 @@ inline QStringList commonsImageFileNames(const QByteArray& data, const QString& 
 inline QString commonsImageFileName(const QByteArray& data, const QString& wikiDataId)
 {
 	return commonsImageFileNames(data, wikiDataId).value(0);
+}
+
+// Persist negative lookups too: restarting or repainting must not retry every
+// artist for which all providers have just returned no usable portrait.
+inline qint64 cachedFailureTime(const QString& path)
+{
+	QFile file(path);
+	if (!file.open(QIODevice::ReadOnly)) return 0;
+	bool ok = false;
+	const qint64 timestamp = file.read(32).trimmed().toLongLong(&ok);
+	return ok && timestamp > 0 ? timestamp : 0;
+}
+
+inline bool cacheFailure(const QString& path, qint64 timestamp)
+{
+	QSaveFile file(path);
+	const QByteArray data = QByteArray::number(timestamp);
+	return file.open(QIODevice::WriteOnly) && file.write(data) == data.size() && file.commit();
 }
 
 inline RetryState retryState(qint64 failureTime, qint64 now, qint64 retryInterval)
