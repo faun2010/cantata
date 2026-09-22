@@ -62,10 +62,10 @@
 #endif
 
 const QLatin1String AlbumView::constCacheDir("albums/");
-const QLatin1String AlbumView::constInfoExt(".html.gz");
+const QLatin1String AlbumView::constInfoExt(".music-v2.html.gz");
 // Bump the namespace after tightening Wikipedia result selection so cached
 // catalogue-only pages (for example "Op. 92") cannot survive as work notes.
-const QLatin1String AlbumView::constWorkCacheDir("works-v2/");
+const QLatin1String AlbumView::constWorkCacheDir("works-v3/");
 
 static const QLatin1String constScheme("cantata");
 static const QByteArray constWorkUserAgent("Cantata classical-work lookup (https://github.com/CDrummond/cantata)");

@@ -30,10 +30,8 @@
 #include <QString>
 #include <QStringList>
 
-// The two-level model behind the "Composer of the Day" page: today's
-// composers, each with their most famous works and the one recording of each
-// that was found in the library. It is rebuilt from scratch whenever the day
-// changes, so it never holds more than today's handful of composers.
+// Today's birthdays and death anniversaries, each containing musicians and
+// their works with recordings available in the library. Only today is held.
 class ComposerDayModel : public ActionModel {
 	Q_OBJECT
 
@@ -57,18 +55,22 @@ public:
 		QList<Work> works;
 		// Set while the composer's works are still being looked up.
 		bool loading = true;
+		bool birth = true;
 		QStringList files() const;
 	};
 
 	ComposerDayModel(QObject* p = nullptr);
 	~ComposerDayModel() override {}
 
+	// Keep only musicians with at least one matched recording. All exposed
+	// flat indices refer to this visible list, not the lookup results.
 	void setComposers(const QList<Composer>& composers);
 	void updateComposer(int row, const Composer& composer);
 	const QList<Composer>& composers() const { return composerList; }
+	QModelIndex composerIndex(int flatRow) const;
 	bool isEmpty() const { return composerList.isEmpty(); }
 	// Every file of the selection, de-duplicated, in list order: a composer
-	// row contributes all of its works' recordings.
+	// or anniversary group contributes all of its works' recordings.
 	QStringList files(const QModelIndexList& indexes) const;
 
 	QModelIndex index(int row, int column, const QModelIndex& parent) const override;
@@ -80,8 +82,10 @@ public:
 	Qt::ItemFlags flags(const QModelIndex& index) const override;
 
 private:
-	// -1 for a composer row, the composer's row for a work row.
-	static int parentRow(const QModelIndex& index);
+	// IDs: 0 for groups, 1/2 for musicians in each group, flat row + 3
+	// for works. composerList contains only visible musicians.
+	int flatRow(const QModelIndex& index) const;
+	QStringList rowFiles(const QModelIndex& index) const;
 
 	QList<Composer> composerList;
 	QIcon composerIcon;

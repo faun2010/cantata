@@ -34,6 +34,66 @@ QList<ComposerDay::Composer> calendar()
 class ComposerDayTest : public QObject {
 	Q_OBJECT
 private Q_SLOTS:
+	void onThisDayDeathsIncludeHighlightedPeople()
+	{
+		const QByteArray html = "<link rel=\"canonical\" href=\"https://www.onthisday.com/music/deaths/september/22\">\n"
+"<li class=\"person\"><a href=\"/music/deaths/date/1981\">1981</a> Harry Warren [Salvatore Guaragna], American composer and lyricist (&quot;You&#039;ll Never Know&quot;), dies at 87</li>\n"
+"<header><h2 class=\"poi__heading\"><a href=\"/people/irving-berlin\"><img alt=\"\"><span class=\"poi__heading-txt\">Irving Berlin <span class=\"poi__date\">(1888-1989)</span></span></a></h2></header><p>Russian-American <a href=\"/people/composers\">composer</a> and lyricist, dies at 101</p>\n"
+"<li class=\"person no-border\"><b>2001</b> Isaac Stern, American-Ukrainian concert violinist, dies at 81</li>\n"
+"<li class=\"person\"><b>2001</b> Isaac Stern, duplicate</li>\n"
+"<li class=\"person\"><b>2030</b> Future Person, composer</li>\n"
+"<li class=\"person\"><b>2018</b> Charles &quot;Chas&quot; Hodges, English musician, dies at 74</li>\n"
+"<li>1999 Somebody Else, composer</li><p>1999 Sidebar Person, composer</p>\n";
+		const auto found = ComposerDay::parseOnThisDay(html, QDate(2026, 9, 22), false);
+		QCOMPARE(found.count(), 4);
+		QCOMPARE(found.at(0).name, QStringLiteral("Harry Warren"));
+		QCOMPARE(found.at(0).aliases, QStringList{QStringLiteral("Salvatore Guaragna")});
+		QVERIFY(found.at(0).description.contains(QStringLiteral("You'll Never Know")));
+		QCOMPARE(found.at(1).name, QStringLiteral("Irving Berlin"));
+		QCOMPARE(found.at(1).date, QStringLiteral("1989-09-22"));
+		QCOMPARE(found.at(1).years, 37);
+		QVERIFY(found.at(1).composer);
+		QVERIFY(!found.at(2).composer);
+		QVERIFY(!found.at(2).birth);
+		QCOMPARE(found.at(3).name, QStringLiteral("Charles Hodges"));
+		QCOMPARE(found.at(3).aliases.first(), QStringLiteral("Chas Hodges"));
+		QVERIFY(ComposerDay::parseOnThisDay(html, QDate(2026, 9, 23), false).isEmpty());
+		QVERIFY(ComposerDay::parseOnThisDay(html, QDate(2026, 9, 22), true).isEmpty());
+		QVERIFY(ComposerDay::parseOnThisDay(QByteArray("<html>Access denied</html>"), QDate(2026, 9, 22), false).isEmpty());
+	}
+
+	void onThisDayBirthdaysParseNamesAndRealYears()
+	{
+		const QByteArray html = "<link rel=\"canonical\" href=\"https://www.onthisday.com/music/birthdays/september/22\">\n"
+"<li class=\"person\"><b>1733</b> Anton Filtz [Fils], German composer, born in Eichstätt (d. 1760)</li>\n"
+"<li class=\"person\"><b>1918</b> (Archibald James) &quot;A.J.&quot; Potter, Irish composer (Finnegan&#039;s Wake), born in Belfast (d. 1980)</li>\n"
+"<header><h2 class=\"poi__heading\"><a href=\"/people/andrea-bocelli\"><span>Andrea Bocelli <span class=\"poi__date\">(68 years old)</span></span></a></h2></header><p><a class=\"birthDate\">1958</a> Italian <a>tenor</a>, born in Lajatico</p>\n"
+"<header><h2 class=\"poi__heading\">Unknown Singer (68 years old)</h2></header><p>Singer without a historical year</p>\n"
+"<li class=\"person\"><b>1942</b> Marlena Shaw [Marlina Burgess], American R&amp;B singer,\n"
+"born in New York (d. 2024)</li>\n";
+		const auto found = ComposerDay::parseOnThisDay(html, QDate(2026, 9, 22), true);
+		QCOMPARE(found.count(), 4);
+		QCOMPARE(found.at(0).aliases.first(), QStringLiteral("Anton Fils"));
+		QCOMPARE(found.at(1).name, QStringLiteral("A.J. Potter"));
+		QCOMPARE(found.at(1).aliases.first(), QStringLiteral("Archibald James Potter"));
+		QCOMPARE(found.at(2).name, QStringLiteral("Andrea Bocelli"));
+		QCOMPARE(found.at(2).date, QStringLiteral("1958-09-22"));
+		QVERIFY(found.at(2).birth);
+		QVERIFY(!found.at(2).composer);
+		QVERIFY(found.at(3).description.contains(QStringLiteral("R&B")));
+	}
+
+	void musicianIdentityRequiresFullName()
+	{
+		QVERIFY(ComposerDay::musicianMatches(QStringLiteral("Stern, Isaac"), QStringLiteral("Isaac Stern")));
+		QVERIFY(ComposerDay::musicianMatches(QStringLiteral("Isaac Stern; Leonard Bernstein"), QStringLiteral("Isaac Stern")));
+		QVERIFY(ComposerDay::musicianMatches(QStringLiteral("Anton Fils"), QStringLiteral("Anton Filtz"), {QStringLiteral("Anton Fils")}));
+		QVERIFY(!ComposerDay::musicianMatches(QStringLiteral("Stern"), QStringLiteral("Isaac Stern")));
+		QVERIFY(!ComposerDay::musicianMatches(QStringLiteral("Mike Stern"), QStringLiteral("Isaac Stern")));
+		QVERIFY(!ComposerDay::musicianMatches(QStringLiteral("Isaac Stern Tribute Ensemble"), QStringLiteral("Isaac Stern")));
+		QVERIFY(!ComposerDay::musicianMatches(QStringLiteral(""), QStringLiteral("")));
+	}
+
 	void parseCalendarDropsUnusableEntries()
 	{
 		const QList<ComposerDay::Composer> composers = calendar();
@@ -187,6 +247,57 @@ private Q_SLOTS:
 		work.title = QStringLiteral("Tapiola");
 		work.catalogue = QStringLiteral("Op.112");
 		QVERIFY(ComposerDay::selectWorkTracks(tracks, work).isEmpty());
+	}
+
+	void libraryCompilationUsesDistinctTrackWorksAndCapsAtTen()
+	{
+		QList<ComposerDay::Track> tracks;
+		for (int n = 1; n <= 12; ++n) {
+			tracks.append(makeTrack(QStringLiteral("%1a.flac").arg(n), QStringLiteral("Complete Works"), QStringLiteral("Symphony No.%1, Op.%2: I. Allegro").arg(n).arg(n + 100), n * 2));
+			tracks.append(makeTrack(QStringLiteral("%1b.flac").arg(n), QStringLiteral("Complete Works"), QStringLiteral("Symphony No.%1, Op.%2: II. Andante").arg(n).arg(n + 100), n * 2 + 1));
+		}
+		const auto works = ComposerDay::worksFromLibrary(tracks, 50);
+		QCOMPARE(works.count(), 10);
+		QCOMPARE(works.first().title, QStringLiteral("Symphony No.1, Op.101"));
+		QCOMPARE(ComposerDay::selectWorkTracks(tracks, works.first()).count(), 2);
+		QCOMPARE(ComposerDay::worksFromLibrary(tracks, 2).count(), 2);
+		QVERIFY(ComposerDay::worksFromLibrary(tracks, 0).isEmpty());
+		QVERIFY(ComposerDay::worksFromLibrary(tracks, -1).isEmpty());
+		QStringList titles;
+		for (int n = 0; n < 12; ++n) titles.append(QStringLiteral("\"Work %1\"").arg(n));
+		const QString response = QLatin1Char('[') + titles.join(QLatin1Char(',')) + QLatin1Char(']');
+		QCOMPARE(ComposerDay::parseWorks(response, 50).count(), 10);
+		QVERIFY(ComposerDay::parseWorks(response, 0).isEmpty());
+	}
+
+	void libraryPopSongsNeedNoComposerOrClassicalGenre()
+	{
+		auto first = makeTrack(QStringLiteral("song1"), QStringLiteral("Greatest Hits"), QStringLiteral("Hallelujah"), 1, QString(), QStringLiteral("Leonard Cohen"));
+		first.genre = QStringLiteral("Pop");
+		auto second = first;
+		second.file = QStringLiteral("song2");
+		second.title = QStringLiteral("Suzanne");
+		second.track = 2;
+		const QList<ComposerDay::Track> tracks = {first, second};
+		const auto works = ComposerDay::worksFromLibrary(tracks);
+		QCOMPARE(works.count(), 2);
+		QCOMPARE(works.first().title, QStringLiteral("Hallelujah"));
+		QCOMPARE(ComposerDay::selectWorkTracks(tracks, works.first()), QList<int>{0});
+	}
+
+	void libraryCompilationDoesNotCountMovementsAsRecordings()
+	{
+		const QList<ComposerDay::Track> tracks = {
+			makeTrack(QStringLiteral("a1"), QStringLiteral("Collection"), QStringLiteral("Symphony No.2, Op.43: I. Allegro"), 1),
+			makeTrack(QStringLiteral("a2"), QStringLiteral("Collection"), QStringLiteral("Symphony No.2, Op.43: II. Andante"), 2),
+			makeTrack(QStringLiteral("a3"), QStringLiteral("Collection"), QStringLiteral("Symphony No.2, Op.43: III. Presto"), 3),
+			makeTrack(QStringLiteral("a4"), QStringLiteral("Collection"), QStringLiteral("Finlandia, Op.26"), 4),
+			makeTrack(QStringLiteral("b1"), QStringLiteral("Another Collection"), QStringLiteral("Finlandia, Op.26"), 1),
+			makeTrack(QStringLiteral("c1"), QStringLiteral("Complete Works"), QStringLiteral("I. Allegro"), 1),
+		};
+		const auto works = ComposerDay::worksFromLibrary(tracks);
+		QCOMPARE(works.count(), 2);
+		QCOMPARE(works.first().title, QStringLiteral("Finlandia, Op.26"));
 	}
 
 	void worksFromLibraryRanksTheMostRecordedFirst()

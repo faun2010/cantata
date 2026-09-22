@@ -78,7 +78,10 @@ Candidate deriveWork(const QString& composer, const QString& artist, const QStri
 QString composerSurname(const QString& composer);
 
 // Picks the best result from a MediaWiki "action=query&list=search" response
-// that plausibly matches "work". A result's title must contain the detected
+// that plausibly matches "work". Lists and explicitly non-musical subjects
+// are rejected. Without a detected work type, a weaker surname/snippet match
+// also needs a musical-work definition or musical disambiguation suffix.
+// A result's title must contain the detected
 // work-type keyword (when one was found) - this alone rejects composer
 // biography pages etc. Among the remaining candidates, a result whose title
 // or (HTML) snippet contains the catalogue number is preferred over one that

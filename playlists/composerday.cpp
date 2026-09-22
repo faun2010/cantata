@@ -29,6 +29,8 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QMap>
+#include <QLocale>
+#include <QRegularExpression>
 #include <QSet>
 #include <algorithm>
 
@@ -140,6 +142,137 @@ QList<ComposerDay::Anniversary> ComposerDay::anniversariesFor(const QList<Compos
 	return deaths + births;
 }
 
+namespace {
+QString htmlText(QString text)
+{
+	text.remove(QRegularExpression(QStringLiteral("<[^>]*>")));
+	static const QRegularExpression entity(QStringLiteral("&#(x[0-9a-fA-F]+|[0-9]+);"));
+	auto matches = entity.globalMatch(text);
+	QList<QRegularExpressionMatch> replacements;
+	while (matches.hasNext()) replacements.prepend(matches.next());
+	for (const auto& match : replacements) {
+		const QString number = match.captured(1);
+		bool ok = false;
+		const uint code = number.startsWith(QLatin1Char('x')) ? number.mid(1).toUInt(&ok, 16) : number.toUInt(&ok);
+		if (ok && code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff)) {
+			QString decoded;
+			if (code <= 0xffff) decoded += QChar(ushort(code));
+			else { decoded += QChar(QChar::highSurrogate(code)); decoded += QChar(QChar::lowSurrogate(code)); }
+			text.replace(match.capturedStart(), match.capturedLength(), decoded);
+		}
+	}
+	text.replace(QLatin1String("&quot;"), QLatin1String("\""));
+	text.replace(QLatin1String("&apos;"), QLatin1String("'"));
+	text.replace(QLatin1String("&nbsp;"), QLatin1String(" "));
+	text.replace(QLatin1String("&ndash;"), QString::fromUtf8("–"));
+	text.replace(QLatin1String("&mdash;"), QString::fromUtf8("—"));
+	text.replace(QLatin1String("&amp;"), QLatin1String("&"));
+	return text.simplified();
+}
+
+QString identity(QString name)
+{
+	const QStringList inverted = name.split(QLatin1Char(','));
+	if (inverted.count() == 2) name = inverted.at(1).trimmed() + QLatin1Char(' ') + inverted.at(0).trimmed();
+	return RecommendedRecordings::normaliseName(name);
+}
+}
+
+bool ComposerDay::musicianMatches(const QString& tag, const QString& name, const QStringList& aliases)
+{
+	QStringList wanted = aliases;
+	wanted.prepend(name);
+	const QStringList credited = tag.split(QRegularExpression(QStringLiteral("[;/\\n]|\\s+&\\s+")), Qt::SkipEmptyParts);
+	for (const QString& person : credited) {
+		const QString key = identity(person);
+		if (key.isEmpty()) continue;
+		for (const QString& candidate : wanted) {
+			if (!candidate.trimmed().isEmpty() && key == identity(candidate)) return true;
+		}
+	}
+	return false;
+}
+
+QList<ComposerDay::Anniversary> ComposerDay::parseOnThisDay(const QByteArray& html, const QDate& date, bool birth)
+{
+	QList<Anniversary> result;
+	if (!date.isValid()) return result;
+	const QString document = QString::fromUtf8(html);
+	const QString path = QLatin1String("https://www.onthisday.com/music/") + (birth ? QLatin1String("birthdays/") : QLatin1String("deaths/"))
+			+ QLocale::c().monthName(date.month()).toLower() + QLatin1Char('/') + QString::number(date.day());
+	const QRegularExpression canonical(QStringLiteral("<link\\b[^>]*\\brel=[\"']canonical[\"'][^>]*>"), QRegularExpression::CaseInsensitiveOption);
+	const QString link = canonical.match(document).captured();
+	const QRegularExpression href(QStringLiteral("\\bhref=[\"']([^\"']+)[\"']"));
+	if (href.match(link).captured(1) != path) return result;
+
+	const QRegularExpression entries(QStringLiteral("<li\\b[^>]*class=[\"']person(?:\\s[^\"']*)?[\"'][^>]*>(.*?)</li>|<h2\\b[^>]*class=[\"']poi__heading[\"'][^>]*>(.*?)</h2>\\s*</header>\\s*<p[^>]*>(.*?)</p>"),
+			QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption);
+	const QRegularExpression yearPrefix(QStringLiteral("^(\\d{3,4})\\s+(.+)$"));
+	const QRegularExpression life(QString::fromUtf8("\\((\\d{3,4})\\s*[-–]\\s*(\\d{3,4})\\)"));
+	const QRegularExpression writer(QStringLiteral("\\b(composer|songwriter|lyricist)\\b"), QRegularExpression::CaseInsensitiveOption);
+	QSet<QString> seen;
+	auto matches = entries.globalMatch(document);
+	while (matches.hasNext()) {
+		const auto match = matches.next();
+		Anniversary item;
+		item.birth = birth;
+		int year = 0;
+		if (!match.captured(1).isEmpty()) {
+			const auto prefix = yearPrefix.match(htmlText(match.captured(1)));
+			if (!prefix.hasMatch()) continue;
+			year = prefix.captured(1).toInt();
+			const QString body = prefix.captured(2);
+			const int comma = body.indexOf(QLatin1Char(','));
+			if (comma < 1) continue;
+			item.name = body.left(comma).trimmed();
+			item.description = body.mid(comma + 1).trimmed();
+		} else {
+			item.name = htmlText(match.captured(2));
+			item.description = htmlText(match.captured(3));
+			const auto lifetime = life.match(item.name);
+			const auto prefix = yearPrefix.match(item.description);
+			if (prefix.hasMatch()) { year = prefix.captured(1).toInt(); item.description = prefix.captured(2); }
+			else if (lifetime.hasMatch()) year = lifetime.captured(birth ? 1 : 2).toInt();
+			item.name.remove(QRegularExpression(QStringLiteral("\\s*\\([^)]*\\)\\s*$")));
+		}
+		const QDate eventDate(year, date.month(), date.day());
+		if (!eventDate.isValid() || eventDate > date) continue;
+		// Bracketed birth names may be either a full name or an alternative surname.
+		const QRegularExpression bracket(QStringLiteral("\\s*\\[([^]]+)\\]"));
+		const auto alternate = bracket.match(item.name);
+		if (alternate.hasMatch()) {
+			QString alias = alternate.captured(1).trimmed();
+			item.name.remove(bracket);
+			if (!alias.contains(QLatin1Char(' ')) && item.name.contains(QLatin1Char(' '))) alias = item.name.section(QLatin1Char(' '), 0, -2) + QLatin1Char(' ') + alias;
+			item.aliases.append(alias);
+		}
+		// Site convention: (given names) "stage name" surname.
+		const QRegularExpression nickname(QStringLiteral("^\\(([^)]+)\\)\\s*\"([^\"]+)\"\\s+(.+)$"));
+		const auto nick = nickname.match(item.name);
+		if (nick.hasMatch()) {
+			item.aliases.append(nick.captured(1) + QLatin1Char(' ') + nick.captured(3));
+			item.name = nick.captured(2) + QLatin1Char(' ') + nick.captured(3);
+		}
+		else {
+			const QRegularExpression embeddedNickname(QStringLiteral("^(.+?)\\s+\"([^\"]+)\"\\s+(.+)$"));
+			const auto embedded = embeddedNickname.match(item.name);
+			if (embedded.hasMatch()) {
+				item.aliases.append(embedded.captured(2) + QLatin1Char(' ') + embedded.captured(3));
+				item.name = embedded.captured(1) + QLatin1Char(' ') + embedded.captured(3);
+			}
+		}
+		item.name = item.name.trimmed();
+		const QString key = identity(item.name);
+		if (key.isEmpty() || seen.contains(key)) continue;
+		seen.insert(key);
+		item.composer = writer.match(item.description).hasMatch();
+		item.date = eventDate.toString(QLatin1String("yyyy-MM-dd"));
+		item.years = date.year() - year;
+		result.append(item);
+	}
+	return result;
+}
+
 QString ComposerDay::buildWorksSource(const QString& composer, int count)
 {
 	return QLatin1String("Composer: ") + composer + QLatin1String("\nWorks wanted: ") + QString::number(count);
@@ -148,6 +281,8 @@ QString ComposerDay::buildWorksSource(const QString& composer, int count)
 QList<ComposerDay::Work> ComposerDay::parseWorks(const QString& response, int max)
 {
 	QList<Work> works;
+	max = qMin(max, constWorksPerComposer);
+	if (max <= 0) return works;
 	QSet<QString> seen;
 
 	const QString text = response.trimmed();
@@ -228,50 +363,58 @@ QList<int> ComposerDay::selectWorkTracks(const QList<Track>& tracks, const Work&
 
 QList<ComposerDay::Work> ComposerDay::worksFromLibrary(const QList<Track>& tracks, int max)
 {
-	QList<QString> order;
-	QMap<QString, QList<int>> groups;
-	for (int i = 0; i < tracks.count(); ++i) {
-		const QString key = albumKey(tracks.at(i));
-		if (!groups.contains(key)) order.append(key);
-		groups[key].append(i);
-	}
-
+	max = qMin(max, constWorksPerComposer);
+	if (max <= 0) return QList<Work>();
 	struct Derived {
 		Work work;
-		// How many distinct recordings of this work the library holds, and how
-		// many tracks they add up to - a work the user owns several times over
-		int recordings = 0;
+		QSet<QString> recordings;
 		int tracks = 0;
 	};
 	QList<Derived> derivedWorks;
 	QMap<QString, int> byWorkKey;
-	for (const QString& key : order) {
-		const QList<int>& indexes = groups.value(key);
-		const WorkInfo::Candidate candidate = albumWork(tracks.at(indexes.first()));
+	// A bare movement cannot identify a work. Prefer a complete track title
+	// over an album title: box sets and compilations contain many works.
+	static const QRegularExpression movementOnly(QStringLiteral("^(?:(?:[IVXLCDM]+|[0-9]+)[.)]\\s*|(?:allegro|allegretto|andante|andantino|adagio|largo|larghetto|presto|prestissimo|vivace|moderato|maestoso|scherzo|menuetto|menuet|minuet|finale|lento|grave)\\b)"), QRegularExpression::CaseInsensitiveOption);
+	static const QRegularExpression movementSuffix(QString::fromUtf8("\\s*(?::|[-–—])\\s*(?:[IVXLCDM]+|[0-9]+)[.)]\\s+.*$"), QRegularExpression::CaseInsensitiveOption);
+	static const QRegularExpression collection(QStringLiteral("\\b(?:complete|collection|compilation|favourites|favorites|best of|greatest|integrale|edition|anthology|box set|symphonies|concertos|sonatas|quartets)\\b"), QRegularExpression::CaseInsensitiveOption);
+	for (const Track& track : tracks) {
+		QString title = track.title.trimmed();
+		WorkInfo::Candidate candidate;
+		if (!title.isEmpty() && !movementOnly.match(title).hasMatch() && !collection.match(title).hasMatch()) {
+			title.remove(movementSuffix);
+			candidate = WorkInfo::deriveWork(track.composer, track.artist, track.albumArtist, title, QString(), QString());
+			// A singer's song is a work too, even without a composer tag.
+			if (!candidate.valid) {
+				candidate.title = title;
+				candidate.valid = true;
+			}
+		} else {
+			candidate = WorkInfo::deriveWork(track.composer, track.artist, track.albumArtist, track.album, track.title, QString());
+			// With only movement tags, require an identifiable album work;
+			// never use an undifferentiated box-set title as one work.
+			if (collection.match(candidate.title).hasMatch() || (candidate.catalogueNumber.isEmpty() && candidate.genreKeyword.isEmpty())) continue;
+		}
 		if (!candidate.valid || candidate.title.isEmpty()) continue;
 		const QString workKey = RecommendedRecordings::normaliseCatalogue(candidate.catalogueNumber).isEmpty()
 				? RecommendedRecordings::normaliseTitle(candidate.title)
 				: RecommendedRecordings::normaliseCatalogue(candidate.catalogueNumber);
 		if (workKey.isEmpty()) continue;
-		if (byWorkKey.contains(workKey)) {
-			Derived& existing = derivedWorks[byWorkKey.value(workKey)];
-			++existing.recordings;
-			existing.tracks += indexes.count();
-			continue;
+		if (!byWorkKey.contains(workKey)) {
+			Derived derived;
+			derived.work.title = candidate.title;
+			derived.work.catalogue = candidate.catalogueNumber;
+			byWorkKey.insert(workKey, derivedWorks.count());
+			derivedWorks.append(derived);
 		}
-		Derived derived;
-		derived.work.title = candidate.title;
-		derived.work.catalogue = candidate.catalogueNumber;
-		derived.recordings = 1;
-		derived.tracks = indexes.count();
-		byWorkKey.insert(workKey, derivedWorks.count());
-		derivedWorks.append(derived);
+		Derived& derived = derivedWorks[byWorkKey.value(workKey)];
+		derived.recordings.insert(albumKey(track));
+		++derived.tracks;
 	}
 
 	// Most-recorded first: owning three readings of a work says more about
 	// how central it is than owning one long one.
 	std::stable_sort(derivedWorks.begin(), derivedWorks.end(), [](const Derived& a, const Derived& b) {
-		return a.recordings == b.recordings ? a.tracks > b.tracks : a.recordings > b.recordings;
+		return a.recordings.count() == b.recordings.count() ? a.tracks > b.tracks : a.recordings.count() > b.recordings.count();
 	});
 
 	QList<Work> works;

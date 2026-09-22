@@ -53,12 +53,15 @@ public:
 	void cancel(const QString& source, const QString& context = QString());
 	static QString plainTextToHtml(QString text);
 	void reloadConfiguration();
+	void ensureComposerIdentity(const QString& name, bool refresh = false);
 
 	QString configurationFilePath() const { return configFile; }
 	QString translationCacheDirectory() const { return cacheDir; }
 	bool isEnabled() const { return enabled; }
 
 Q_SIGNALS:
+	void composerIdentityUpdated(const QString& requestedName);
+	void composerIdentityRejected(const QString& requestedName, const QString& reason);
 	void translationReady(const QString& source, const QString& context, const QString& translation);
 
 private Q_SLOTS:
@@ -68,6 +71,7 @@ private:
 	struct Request {
 		QString key;
 		QString pendingToken;
+		QString identitiesRevision;
 		QString source;
 		QString context;
 		QString provider;
@@ -91,6 +95,10 @@ private:
 	// burst of IME keystrokes (e.g. 贝 -> 贝多 -> 贝多芬) from queuing up
 	// stale intermediate search terms behind the final one.
 	void supersedeRelatedRequests(const QString& source, const QString& context);
+
+	void verifyComposerIdentity(const QString& name, const QString& proposal);
+	QHash<QString, qint64> identityAttempts;
+	QSet<QNetworkReply*> identityReplies;
 
 	QString configFile;
 	QString cacheDir;

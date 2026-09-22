@@ -22,16 +22,17 @@
  */
 
 #include "covers.h"
+#include "apikeys.h"
 #include "artistimageprovider.h"
 #include "artworkquality.h"
-#include "discogsartwork.h"
-#include "apikeys.h"
 #include "config.h"
 #include "context/artistlookup.h"
 #include "devices/deviceoptions.h"
+#include "discogsartwork.h"
 #include "mpd-interface/mpdconnection.h"
 #include "mpd-interface/song.h"
 #include "network/networkaccessmanager.h"
+#include "network/translationservice.h"
 #include "online/onlineservice.h"
 #include "settings.h"
 #include "support/thread.h"
@@ -101,7 +102,7 @@ static bool saveInMpdDir = true;
 static bool fetchCovers = true;
 static QString constNoCover = QLatin1String("{nocover}");
 static const int constRemoteTimeout = 15 * 1000;
-static const qint64 constArtistFailureRetryMsecs = 5 * 60 * 1000;
+static const qint64 constArtistFailureRetryMsecs = 60 * 60 * 1000;
 
 static double devicePixelRatio = 1.0;
 // Only scale images to device pixel ratio if un-scaled size is less then 300pixels.
@@ -262,7 +263,7 @@ static inline QString albumKey(const Song& s)
 
 static inline QString artistKey(const Song& s)
 {
-	return "{" + s.albumArtist() + "}";
+	return "{" + ArtistLookup::imageCacheToken(s.albumArtist()) + "}";
 }
 
 static inline QString composerKey(const Song& s)
@@ -298,7 +299,7 @@ static QString getScaledCoverName(const Song& song, int size, bool createDir)
 {
 	if (song.isArtistImageRequest()) {
 		QString dir = Utils::cacheDir(Covers::constScaledCoverDir + QString::number(size) + QLatin1Char('/'), createDir);
-		return dir.isEmpty() ? QString() : (dir + Covers::encodeName(song.albumArtist()) + constScaledExtension);
+		return dir.isEmpty() ? QString() : (dir + Covers::artistCacheName(song.albumArtist()) + constScaledExtension);
 	}
 
 	if (song.isComposerImageRequest()) {
@@ -329,7 +330,7 @@ static void clearScaledCache(const Song& song)
 		bool artistImage = song.isArtistImageRequest();
 
 		for (int i = 0; constExtensions[i]; ++i) {
-			QString fileName = Covers::encodeName(artistImage ? song.albumArtist() : song.composer()) + constExtensions[i];
+			QString fileName = (artistImage ? Covers::artistCacheName(song.albumArtist()) : Covers::encodeName(song.composer())) + constExtensions[i];
 			for (const QString& sizeDirName : sizeDirNames) {
 				QString fname = dirName + sizeDirName + QLatin1Char('/') + fileName;
 				if (QFile::exists(fname)) {
@@ -432,6 +433,11 @@ QString Covers::albumFileName(const Song& song)
 		coverName.replace(QLatin1String("%"), QLatin1String(""));
 	}
 	return coverName;
+}
+
+QString Covers::artistCacheName(const QString& artist)
+{
+	return ArtistLookup::imageCacheToken(artist);
 }
 
 QString Covers::fixArtist(const QString& artist)
@@ -729,28 +735,73 @@ bool CoverDownloader::downloadViaHttp(Job& job, JobType type)
 	return true;
 }
 
+bool CoverDownloader::portraitActive(const Job& job) const
+{
+	return !stopped && (!job.portraitId || portraits.contains(job.portraitId));
+}
+
+void CoverDownloader::startPortrait(Job job)
+{
+	bool conflict = false;
+	ComposerIdentities::lookup(job.song.albumArtist(), &conflict);
+	job.portraitId = 0;
+	if (conflict) { failed(job); return; }
+	const QString token = Covers::artistCacheName(job.song.albumArtist());
+	for (const auto& active : portraits) if (active->cacheToken == token) return;
+	job.portraitId = ++nextPortraitId;
+	auto state = QSharedPointer<PortraitSearch>::create(job);
+	state->cacheToken = token;
+	portraits.insert(job.portraitId, state);
+	// A slow/queued provider cannot keep an otherwise usable portrait hidden.
+	QTimer::singleShot(12000, this, [this, job]() { finishPortrait(job, QImage(), QByteArray(), true); });
+	Job wikipedia = job;
+	wikipedia.portraitPriority = 40;
+	downloadViaWikipedia(wikipedia);
+	job.musicBrainzId = ArtistLookup::musicBrainzId(job.song.albumArtist());
+	if (job.musicBrainzId.isEmpty()) downloadViaMusicBrainzSearch(job);
+	else downloadViaMusicBrainzArtist(job);
+}
+
+void CoverDownloader::finishPortrait(const Job& job, const QImage& image, const QByteArray& raw, bool deadline)
+{
+	auto state = portraits.value(job.portraitId);
+	if (!state) return;
+	const int score = ArtworkQuality::portraitScore(image, job.portraitPriority);
+	DBUG << "portrait candidate" << job.song.albumArtist() << job.type << image.size() << score;
+	if (score > state->score) {
+		state->score = score; state->image = image; state->raw = raw;
+	}
+	if (!deadline && --state->pending > 0) return;
+	portraits.remove(job.portraitId);
+	for (auto it = jobs.begin(); it != jobs.end();) {
+		if (it.value().portraitId != job.portraitId) { ++it; continue; }
+		NetworkJob* reply = it.key();
+		it = jobs.erase(it);
+		disconnect(reply, nullptr, this, nullptr);
+		reply->cancelAndDelete();
+	}
+	if (stopped) return;
+	if (state->cacheToken != Covers::artistCacheName(job.song.albumArtist())) {
+		startPortrait(state->job);
+		return;
+	}
+	QString file;
+	QImage selected = state->image;
+	if (!selected.isNull()) {
+		if (selected.width() > Covers::constMaxSize.width() || selected.height() > Covers::constMaxSize.height())
+			selected = selected.scaled(Covers::constMaxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+		file = saveImg(state->job, selected, state->raw);
+		if (!file.isEmpty()) clearScaledCache(job.song);
+	}
+	DBUG << "portrait selected" << job.song.albumArtist() << state->score << file << "deadline" << deadline;
+	emit artistImage(job.song, selected, file);
+}
+
 void CoverDownloader::downloadViaRemote(Job& job)
 {
 	QUrl url;
 	if (job.song.isArtistImageRequest()) {
-		if (!job.wikipediaTried && !ComposerTable::biographyName(job.song.albumArtist()).isEmpty()) {
-			downloadViaWikipedia(job);
-			return;
-		}
-		url = QUrl("https://ws.audioscrobbler.com/2.0/");
-		QUrlQuery query;
-
-		query.addQueryItem("method", "artist.getinfo");
-		ApiKeys::self()->addKey(query, ApiKeys::LastFm);
-		query.addQueryItem("autocorrect", "1");
-		query.addQueryItem("artist", ArtistLookup::queryName(Covers::fixArtist(job.song.albumArtist())));
-		url.setQuery(query);
-
-		NetworkJob* j = network()->get(url, constRemoteTimeout);
-		connect(j, SIGNAL(finished()), this, SLOT(lastFmArtistCallFinished()));
-		job.type = JobRemote;
-		jobs.insert(j, job);
-		DBUG << url.toString();
+		startPortrait(job);
 	}
 	else {
 		url = QUrl("http://itunes.apple.com/search");
@@ -770,6 +821,7 @@ void CoverDownloader::downloadViaRemote(Job& job)
 
 void CoverDownloader::downloadViaWikipedia(Job& job)
 {
+	if (!portraitActive(job)) return;
 	job.wikipediaTried = true;
 	QUrl url(QStringLiteral("https://en.wikipedia.org/w/api.php"));
 	QUrlQuery query;
@@ -777,10 +829,9 @@ void CoverDownloader::downloadViaWikipedia(Job& job)
 	query.addQueryItem("format", "json");
 	query.addQueryItem("formatversion", "2");
 	query.addQueryItem("redirects", "1");
-	query.addQueryItem("prop", "pageimages|pageprops");
-	query.addQueryItem("piprop", "thumbnail");
-	query.addQueryItem("pithumbsize", "600");
-	query.addQueryItem("titles", ArtistLookup::queryName(job.song.albumArtist()));
+	query.addQueryItem("prop", "pageprops|categories");
+	query.addQueryItem("cllimit", "max");
+	query.addQueryItem("titles", ArtistLookup::wikipediaName(job.song.albumArtist()) + (job.wikipediaQualified ? QStringLiteral(" (composer)") : QString()));
 	url.setQuery(query);
 	NetworkJob* reply = network()->get(url, constRemoteTimeout);
 	jobs.insert(reply, job);
@@ -795,16 +846,16 @@ void CoverDownloader::wikipediaCallFinished()
 	if (it != jobs.end()) {
 		Job job = it.value();
 		jobs.erase(it);
-		const QUrl url = reply->ok() ? ArtistLookup::composerImageUrl(QJsonDocument::fromJson(reply->readAll()).object(), job.song.albumArtist()) : QUrl();
-		if (!url.isEmpty()) {
-			job.type = JobWikipediaImage;
-			NetworkJob* image = network()->get(url, constRemoteTimeout);
-			jobs.insert(image, job);
-			connect(image, &NetworkJob::finished, this, &CoverDownloader::jobFinished);
-			DBUG << "download Wikipedia composer image" << url;
+		job.wikiDataId = reply->ok() ? ArtistLookup::portraitEntityId(QJsonDocument::fromJson(reply->readAll()).object(), job.song.albumArtist()) : QString();
+		if (!job.wikiDataId.isEmpty()) {
+			downloadViaWikiData(job);
 		}
 		else {
-			downloadViaRemote(job);
+			if (!job.wikipediaQualified && !ArtistLookup::wikipediaName(job.song.albumArtist()).contains(QLatin1Char('('))) {
+				job.wikipediaQualified = true;
+				downloadViaWikipedia(job);
+			}
+			else failed(job);
 		}
 	}
 	reply->deleteLater();
@@ -838,7 +889,7 @@ void CoverDownloader::downloadViaDiscogsArtist(Job job)
 
 void CoverDownloader::startDiscogsArtist(Job job)
 {
-	if (stopped) return;
+	if (!portraitActive(job)) return;
 	job.type = JobDiscogsArtist;
 	QNetworkRequest request(QUrl(QStringLiteral("https://api.discogs.com/artists/") + job.discogsArtistId));
 	request.setRawHeader("User-Agent", "artist artwork (+https://github.com/nullobsi/cantata)");
@@ -877,7 +928,7 @@ void CoverDownloader::downloadViaFanArt(Job& job)
 	NetworkJob* j = network()->get(QNetworkRequest(url), constRemoteTimeout);
 	connect(j, SIGNAL(finished()), this, SLOT(remoteCallFinished()));
 	jobs.insert(j, job);
-	DBUG << "download" << url;
+	DBUG << "download Fanart artist" << job.musicBrainzId;
 }
 
 void CoverDownloader::downloadViaMusicBrainzSearch(Job& job)
@@ -895,14 +946,14 @@ void CoverDownloader::downloadViaMusicBrainzSearch(Job& job)
 
 void CoverDownloader::startMusicBrainzSearch(Job job)
 {
-	if (stopped) {
+	if (!portraitActive(job)) {
 		return;
 	}
 	QUrl url("https://musicbrainz.org/ws/2/artist");
 	QUrlQuery query;
-	query.addQueryItem("query", "artist:\"" + ArtistImageProvider::luceneQuoted(ArtistLookup::queryName(Covers::fixArtist(job.song.albumArtist()))) + "\"");
+	query.addQueryItem("query", ArtistImageProvider::artistSearchQuery(ArtistLookup::portraitName(Covers::fixArtist(job.song.albumArtist()))));
 	query.addQueryItem("fmt", "json");
-	query.addQueryItem("limit", "5");
+	query.addQueryItem("limit", "100");
 	url.setQuery(query);
 	job.type = JobMusicBrainzSearch;
 	QNetworkRequest request(url);
@@ -937,7 +988,7 @@ void CoverDownloader::downloadViaMusicBrainzArtist(Job& job)
 
 void CoverDownloader::startMusicBrainzArtist(Job job)
 {
-	if (stopped) {
+	if (!portraitActive(job)) {
 		return;
 	}
 	QUrl url("https://musicbrainz.org/ws/2/artist/" + job.musicBrainzId);
@@ -961,7 +1012,13 @@ void CoverDownloader::downloadViaWikiData(Job& job)
 		return;
 	}
 
-	QUrl url("https://www.wikidata.org/wiki/Special:EntityData/" + job.wikiDataId + ".json");
+	QUrl url("https://www.wikidata.org/w/api.php");
+	QUrlQuery query;
+	query.addQueryItem("action", "wbgetentities");
+	query.addQueryItem("ids", job.wikiDataId);
+	query.addQueryItem("props", "claims");
+	query.addQueryItem("format", "json");
+	url.setQuery(query);
 	job.type = JobWikiData;
 	NetworkJob* j = network()->get(QNetworkRequest(url), constRemoteTimeout);
 	connect(j, SIGNAL(finished()), this, SLOT(wikiDataCallFinished()));
@@ -1020,6 +1077,20 @@ void CoverDownloader::remoteCallFinished()
 	if (it != end) {
 		Job job = it.value();
 		jobs.erase(it);
+		if (job.portraitId) {
+			const auto response = reply->ok() ? QJsonDocument::fromJson(reply->readAll()).object() : QJsonObject();
+			const auto thumbs = response.value("artistthumb").toArray();
+			const QUrl url(thumbs.isEmpty() ? QString() : thumbs.first().toObject().value("url").toString());
+			if (response.value("mbid_id").toString() == job.musicBrainzId && url.scheme() == QLatin1String("https")
+			    && url.host() == QLatin1String("assets.fanart.tv") && url.userInfo().isEmpty()) {
+				NetworkJob* image = network()->get(url, constRemoteTimeout);
+				jobs.insert(image, job);
+				connect(image, &NetworkJob::finished, this, &CoverDownloader::jobFinished);
+			} else failed(job);
+			reply->deleteLater();
+			return;
+		}
+
 		QString url;
 
 		if (reply->ok()) {
@@ -1085,32 +1156,6 @@ void CoverDownloader::remoteCallFinished()
 	reply->deleteLater();
 }
 
-void CoverDownloader::lastFmArtistCallFinished()
-{
-	NetworkJob* reply = qobject_cast<NetworkJob*>(sender());
-	if (!reply) {
-		return;
-	}
-
-	DBUG << "status" << reply->error() << reply->errorString();
-
-	QHash<NetworkJob*, Job>::Iterator it(jobs.find(reply));
-	QHash<NetworkJob*, Job>::Iterator end(jobs.end());
-
-	if (it != end) {
-		Job job = it.value();
-		jobs.erase(it);
-		QString musicBrainzId = reply->ok()
-				? ArtistImageProvider::lastFmMusicBrainzId(reply->readAll(), ArtistLookup::queryName(Covers::fixArtist(job.song.albumArtist())))
-				: QString();
-
-		// Last.fm autocorrect can return a different artist. Do not use that artist's image.
-		job.musicBrainzId = musicBrainzId;
-		downloadViaDiscogs(job);
-	}
-	reply->deleteLater();
-}
-
 void CoverDownloader::discogsArtistCallFinished()
 {
 	NetworkJob* reply = qobject_cast<NetworkJob*>(sender());
@@ -1122,6 +1167,22 @@ void CoverDownloader::discogsArtistCallFinished()
 		if (reply->ok()) {
 			job.discogsImageUrls = DiscogsArtwork::imageUrls(reply->readAll(), job.discogsArtistId);
 		}
+		if (job.portraitId) {
+			const auto urls = job.discogsImageUrls.mid(0, 3);
+			auto state = portraits.value(job.portraitId);
+			if (state && !urls.isEmpty()) {
+				state->pending += urls.size() - 1;
+				job.type = JobDiscogsImage;
+				for (const auto& url : urls) {
+					NetworkJob* image = network()->get(QUrl(url), constRemoteTimeout);
+					jobs.insert(image, job);
+					connect(image, &NetworkJob::finished, this, &CoverDownloader::jobFinished);
+				}
+			} else failed(job);
+			reply->deleteLater();
+			return;
+		}
+
 		downloadNextDiscogsImage(job);
 	}
 	reply->deleteLater();
@@ -1139,7 +1200,7 @@ void CoverDownloader::musicBrainzSearchFinished()
 		Job job = it.value();
 		jobs.erase(it);
 		QString musicBrainzId = reply->ok()
-				? ArtistImageProvider::uniqueMusicBrainzArtistId(reply->readAll(), ArtistLookup::queryName(Covers::fixArtist(job.song.albumArtist())))
+				? ArtistImageProvider::uniqueMusicBrainzArtistId(reply->readAll(), ArtistLookup::portraitName(Covers::fixArtist(job.song.albumArtist())))
 				: QString();
 
 		// A name-only query cannot safely choose between distinct artists with the
@@ -1170,6 +1231,24 @@ void CoverDownloader::musicBrainzArtistCallFinished()
 		job.musicBrainzLinksLoaded = QJsonDocument::fromJson(response).toVariant().toMap().value("id").toString() == job.musicBrainzId;
 		job.wikiDataId = ArtistImageProvider::wikiDataId(response, job.musicBrainzId);
 
+		if (job.portraitId) {
+			auto state = portraits.value(job.portraitId);
+			if (state && job.musicBrainzLinksLoaded) {
+				state->pending += 2;
+				job.discogsLookupPending = false;
+				job.portraitPriority = 35;
+				downloadViaWikiData(job);
+				job.portraitPriority = 20;
+				downloadViaFanArt(job);
+				job.portraitPriority = 10;
+				job.discogsArtistId = DiscogsArtwork::artistId(response, job.musicBrainzId);
+				if (!job.discogsArtistId.isEmpty()) downloadViaDiscogsArtist(job);
+				else failed(job);
+			} else failed(job);
+			reply->deleteLater();
+			return;
+		}
+
 		if (job.discogsLookupPending) {
 			job.discogsLookupPending = false;
 			job.discogsArtistId = DiscogsArtwork::artistId(response, job.musicBrainzId);
@@ -1197,22 +1276,25 @@ void CoverDownloader::wikiDataCallFinished()
 	if (it != jobs.end()) {
 		Job job = it.value();
 		jobs.erase(it);
-		QString fileName = reply->ok() ? ArtistImageProvider::commonsImageFileName(reply->readAll(), job.wikiDataId) : QString();
-
-		if (!fileName.isEmpty()) {
-			QString imageUrl = QLatin1String("https://commons.wikimedia.org/wiki/Special:FilePath/") + QString::fromLatin1(QUrl::toPercentEncoding(fileName));
-			QUrl url(imageUrl);
-			QUrlQuery query;
-			query.addQueryItem("width", "600");
-			url.setQuery(query);
-			NetworkJob* image = network()->get(QNetworkRequest(url), constRemoteTimeout);
-			connect(image, SIGNAL(finished()), this, SLOT(jobFinished()));
-			jobs.insert(image, job);
-			DBUG << "download Wikimedia artist image" << url;
+		const QStringList names = reply->ok() ? ArtistImageProvider::commonsImageFileNames(reply->readAll(), job.wikiDataId) : QStringList();
+		if (!names.isEmpty()) {
+			if (job.portraitId) {
+				auto state = portraits.value(job.portraitId);
+				if (state) state->pending += names.size() - 1;
+			}
+			for (const QString& fileName : names) {
+				QUrl url(QLatin1String("https://commons.wikimedia.org/wiki/Special:FilePath/") + QString::fromLatin1(QUrl::toPercentEncoding(fileName)));
+				QUrlQuery query;
+				query.addQueryItem("width", "600");
+				url.setQuery(query);
+				NetworkJob* image = network()->get(QNetworkRequest(url), constRemoteTimeout);
+				connect(image, SIGNAL(finished()), this, SLOT(jobFinished()));
+				jobs.insert(image, job);
+				DBUG << "download Wikimedia artist image" << url;
+				if (!job.portraitId) break;
+			}
 		}
-		else {
-			failed(job);
-		}
+		else failed(job);
 	}
 	reply->deleteLater();
 }
@@ -1234,6 +1316,13 @@ void CoverDownloader::jobFinished()
 		Covers::Image img;
 		img.img = data.isEmpty() ? QImage() : QImage::fromData(data, Covers::imageFormat(data));
 		Job job = it.value();
+
+		if (job.portraitId) {
+			jobs.erase(it);
+			finishPortrait(job, img.img, data);
+			reply->deleteLater();
+			return;
+		}
 
 		if (!img.img.isNull() && (img.img.size().width() < 32 || ArtworkQuality::isStarPlaceholder(img.img))) {
 			img.img = QImage();
@@ -1357,6 +1446,7 @@ void CoverDownloader::onlineJobFinished()
 
 void CoverDownloader::failed(const Job& job)
 {
+	if (job.portraitId) { finishPortrait(job); return; }
 	if (job.song.isArtistImageRequest()) {
 		DBUG << "artist image" << job.song.albumArtist();
 		emit artistImage(job.song, QImage(), QString());
@@ -1407,7 +1497,7 @@ QString CoverDownloader::saveImg(const Job& job, const QImage& img, const QByteA
 
 		QString dir = Utils::cacheDir(Covers::constCoverDir, true);
 		if (!dir.isEmpty()) {
-			savedName = save(mimeType, extension, dir + Covers::encodeName(job.song.albumArtist()), img, raw);
+			savedName = save(mimeType, extension, dir + (job.song.isArtistImageRequest() ? Covers::artistCacheName(job.song.albumArtist()) : Covers::encodeName(job.song.composer())), img, raw);
 			if (!savedName.isEmpty()) {
 				DBUG << job.song.file << savedName;
 				return savedName;
@@ -1593,6 +1683,15 @@ void CoverLoader::load()
 Covers::Covers()
 	: downloader(nullptr), locator(nullptr), loader(nullptr)
 {
+	connect(TranslationService::self(), &TranslationService::composerIdentityUpdated, this, [this](const QString& name) {
+		if (!identityRetrySongs.contains(name)) return;
+		const Song song = identityRetrySongs.take(name);
+		// The new identity has its own cache key; keep other artists' retry state.
+		requestImage(song, true);
+	});
+	connect(TranslationService::self(), &TranslationService::composerIdentityRejected, this, [this](const QString& name, const QString&) {
+		identityRetrySongs.remove(name);
+	});
 	devicePixelRatio = qApp->devicePixelRatio();
 
 	// Use screen size to calculate max cost - Issue #1498
@@ -1653,6 +1752,12 @@ void Covers::clearNameCache()
 	mutex.unlock();
 }
 
+static QString artistFailurePath(const Song& song, bool create)
+{
+	const QString dir = Utils::cacheDir(Covers::constCoverDir, create);
+	return dir.isEmpty() ? QString() : dir + Covers::artistCacheName(song.albumArtist()) + ".failed";
+}
+
 Covers::ArtistImageRetryState Covers::artistImageRetryState(const Song& song)
 {
 	if (!song.isArtistImageRequest()) {
@@ -1662,6 +1767,10 @@ Covers::ArtistImageRetryState Covers::artistImageRetryState(const Song& song)
 	QString key = artistKey(song);
 	qint64 now = QDateTime::currentMSecsSinceEpoch();
 	mutex.lock();
+	if (!artistImageFailures.contains(key)) {
+		const qint64 timestamp = ArtistImageProvider::cachedFailureTime(artistFailurePath(song, false));
+		artistImageFailures.insert(key, timestamp <= now ? timestamp : 0);
+	}
 	QHash<QString, qint64>::ConstIterator failure = artistImageFailures.constFind(key);
 	ArtistImageRetryState state = NoArtistImageFailure;
 	if (failure != artistImageFailures.constEnd()) {
@@ -1882,6 +1991,11 @@ void Covers::coverDownloaded(const Song& song, const QImage& img, const QString&
 void Covers::artistImageDownloaded(const Song& song, const QImage& img, const QString& file)
 {
 	gotArtistImage(song, img, file);
+	if (img.isNull() && TranslationService::self()->isEnabled()) {
+		if (identityRetrySongs.size() >= 128) identityRetrySongs.clear();
+		identityRetrySongs.insert(song.albumArtist(), song);
+		TranslationService::self()->ensureComposerIdentity(song.albumArtist());
+	}
 }
 
 void Covers::composerImageDownloaded(const Song& song, const QImage& img, const QString& file)
@@ -2226,9 +2340,23 @@ Covers::Image Covers::locateImage(const Song& song)
 					}
 				}
 			}
-			// Check if cover is already cached
+			// Check only identity-versioned downloads for artist portraits.
+			if (song.isArtistImageRequest()) artistOrComposer = artistCacheName(song.albumArtist());
 			QString dir(Utils::cacheDir(constCoverDir, false));
 			if (!dir.isEmpty()) {
+				if (song.isArtistImageRequest()) {
+					const QString legacy = ArtistLookup::legacyImageCacheToken(song.albumArtist());
+					for (int e = 0; legacy != artistOrComposer && constExtensions[e]; ++e) {
+						const QString previous = dir + legacy + constExtensions[e];
+						const QString current = dir + artistOrComposer + constExtensions[e];
+						if (!QFile::exists(current) && QFile::exists(previous)) {
+							const QImage image = loadImage(previous);
+							if (!image.isNull()) {
+								if (!QFile::copy(previous, current)) return Image(image, previous);
+							}
+						}
+					}
+				}
 				for (int e = 0; constExtensions[e]; ++e) {
 					DBUG_CLASS("Covers") << "Checking cache file" << QString(dir + artistOrComposer + constExtensions[e]);
 					if (QFile::exists(dir + artistOrComposer + constExtensions[e])) {
@@ -2329,13 +2457,6 @@ Covers::Image Covers::requestImage(const Song& song, bool urgent)
 	QString key = songKey(song);
 	if (currentImageRequests.contains(key)) {
 		return Image();
-	}
-	if (urgent && song.isArtistImageRequest()) {
-		// Opening/refreshing the artist again is a new attempt. Background paint
-		// requests keep their cooldown, but an explicit view must be allowed to retry.
-		mutex.lock();
-		artistImageFailures.remove(artistKey(song));
-		mutex.unlock();
 	}
 
 	if (!urgent) {
@@ -2457,13 +2578,15 @@ void Covers::gotArtistImage(const Song& song, const QImage& img, const QString& 
 	currentImageRequests.remove(key);
 	mutex.lock();
 	if (img.isNull()) {
-		// A transient network or service failure must not suppress this artist for the
-		// rest of the session. Keep a short retry delay to avoid repeated requests.
-		artistImageFailures.insert(key, QDateTime::currentMSecsSinceEpoch());
+		const qint64 now = QDateTime::currentMSecsSinceEpoch();
+		artistImageFailures.insert(key, now);
+		if (!ArtistImageProvider::cacheFailure(artistFailurePath(song, true), now))
+			qWarning() << "Could not save artist image retry state:" << song.albumArtist();
 		filenames.remove(key);
 	}
 	else {
 		artistImageFailures.remove(key);
+		QFile::remove(artistFailurePath(song, false));
 		if (fileName.isEmpty()) {
 			filenames.remove(key);
 		}

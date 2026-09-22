@@ -1,18 +1,48 @@
 #include "gui/artistimageprovider.h"
 
 #include <QTest>
+#include <QTemporaryDir>
 
 class ArtistImageProviderTest : public QObject {
 	Q_OBJECT
 
 private Q_SLOTS:
+	void persistsFailedLookups()
+	{
+		QTemporaryDir dir;
+		QVERIFY(dir.isValid());
+		const QString path = dir.filePath("artist.failed");
+		QCOMPARE(ArtistImageProvider::cachedFailureTime(path), qint64(0));
+		QVERIFY(ArtistImageProvider::cacheFailure(path, 1000000));
+		QCOMPARE(ArtistImageProvider::retryState(ArtistImageProvider::cachedFailureTime(path), 1000001, 3600000), ArtistImageProvider::RetryDeferred);
+		QCOMPARE(ArtistImageProvider::retryState(ArtistImageProvider::cachedFailureTime(path), 4600000, 3600000), ArtistImageProvider::RetryExpired);
+		QFile corrupt(path);
+		QVERIFY(corrupt.open(QIODevice::WriteOnly));
+		corrupt.write("invalid"); corrupt.close();
+		QCOMPARE(ArtistImageProvider::cachedFailureTime(path), qint64(0));
+	}
+	void skipsDeprecatedAndDuplicateCommonsImages()
+	{
+		const QByteArray data = R"({"entities":{"Q1":{"claims":{"P18":[{"rank":"deprecated","mainsnak":{"datavalue":{"value":"old.jpg"}}},{"mainsnak":{"datavalue":{"value":"portrait.jpg"}}},{"mainsnak":{"datavalue":{"value":"portrait.jpg"}}},{"mainsnak":{"datavalue":{"value":"photo.jpg"}}}]}}}})";
+		QCOMPARE(ArtistImageProvider::commonsImageFileNames(data, "Q1"), QStringList({"portrait.jpg", "photo.jpg"}));
+		QVERIFY(ArtistImageProvider::commonsImageFileNames(data, "Q2").isEmpty());
+	}
+	void searchesCanonicalNameAndAlias()
+	{
+		QCOMPARE(ArtistImageProvider::artistSearchQuery("Gavriil Popov"), QStringLiteral("artist:\"Gavriil Popov\" OR alias:\"Gavriil Popov\""));
+		QCOMPARE(ArtistImageProvider::artistSearchQuery(QStringLiteral("A\"B")), QStringLiteral("artist:\"A\\\"B\" OR alias:\"A\\\"B\""));
+	}
 	void acceptsOnlyExactLastFmArtist();
 	void acceptsAliasOnlyWhenMusicBrainzMatchIsUnique();
 	void refusesAmbiguousMusicBrainzName();
+	void refusesLowerScoreNamesake();
+	void refusesIncompleteMusicBrainzResults();
+	void requiresTrustedMusicBrainzMatch();
 	void acceptsMotorheadDiacriticVariant();
 	void prefersExactMusicBrainzMatchOverDiacriticVariant();
 	void refusesAmbiguousDiacriticMusicBrainzName();
 	void verifiesMusicBrainzIdBeforeWikidataRelation();
+	void refusesConflictingWikidataRelations();
 	void extractsCommonsP18AndDistinguishesRetryStates();
 	void normalizesUnicodeNames();
 	void aggressiveNameKeyFolding();
@@ -35,6 +65,30 @@ void ArtistImageProviderTest::acceptsAliasOnlyWhenMusicBrainzMatchIsUnique()
 void ArtistImageProviderTest::refusesAmbiguousMusicBrainzName()
 {
 	QByteArray response = R"({"artists":[{"id":"id-1","score":100,"name":"John Williams"},{"id":"id-2","score":100,"name":"John Williams"}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(response, "John Williams").isEmpty());
+}
+
+void ArtistImageProviderTest::refusesLowerScoreNamesake()
+{
+	const QByteArray response = R"({"artists":[{"id":"id-1","score":100,"name":"John Williams"},{"id":"id-2","score":92,"name":"John Williams"}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(response, "John Williams").isEmpty());
+	const QByteArray aliases = R"({"artists":[{"id":"id-1","score":100,"name":"Motörhead"},{"id":"id-2","score":65,"name":"Different artist","aliases":[{"name":"Motōrhead"}]}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(aliases, "Motorhead").isEmpty());
+}
+
+void ArtistImageProviderTest::refusesIncompleteMusicBrainzResults()
+{
+	const QByteArray firstPage = R"({"count":6,"offset":0,"artists":[{"id":"id-1","score":100,"name":"John Williams"}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(firstPage, "John Williams").isEmpty());
+	const QByteArray laterPage = R"({"count":1,"offset":5,"artists":[{"id":"id-1","score":100,"name":"John Williams"}]})";
+	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(laterPage, "John Williams").isEmpty());
+	const QByteArray complete = R"({"count":1,"offset":0,"artists":[{"id":"id-1","score":100,"name":"John Williams"}]})";
+	QCOMPARE(ArtistImageProvider::uniqueMusicBrainzArtistId(complete, "John Williams"), QString("id-1"));
+}
+
+void ArtistImageProviderTest::requiresTrustedMusicBrainzMatch()
+{
+	const QByteArray response = R"({"artists":[{"id":"id-1","score":92,"name":"John Williams"},{"id":"id-2","score":100,"name":"Other person"}]})";
 	QVERIFY(ArtistImageProvider::uniqueMusicBrainzArtistId(response, "John Williams").isEmpty());
 }
 
@@ -67,10 +121,24 @@ void ArtistImageProviderTest::verifiesMusicBrainzIdBeforeWikidataRelation()
 	QVERIFY(ArtistImageProvider::wikiDataId(response, "wrong-id").isEmpty());
 }
 
+void ArtistImageProviderTest::refusesConflictingWikidataRelations()
+{
+	const QByteArray conflicting = R"({"id":"right-id","relations":[{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q255"}},{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q999"}}]})";
+	QVERIFY(ArtistImageProvider::wikiDataId(conflicting, "right-id").isEmpty());
+	const QByteArray duplicate = R"({"id":"right-id","relations":[{"type":"wikidata","url":{"resource":"https://www.wikidata.org/wiki/Q255"}},{"type":"wikidata","url":{"resource":"https://wikidata.org/wiki/Q255"}}]})";
+	QCOMPARE(ArtistImageProvider::wikiDataId(duplicate, "right-id"), QString("Q255"));
+}
+
 void ArtistImageProviderTest::extractsCommonsP18AndDistinguishesRetryStates()
 {
 	QByteArray response = R"({"entities":{"Q255":{"claims":{"P18":[{"mainsnak":{"datavalue":{"value":"Beethoven.jpg"}}}]}}}})";
 	QCOMPARE(ArtistImageProvider::commonsImageFileName(response, "Q255"), QString("Beethoven.jpg"));
+	QVERIFY(ArtistImageProvider::commonsImageFileNames(response, "Q1689210").isEmpty());
+	// Henneberg's article has a score cover, but his entity has no P18 portrait.
+	const QByteArray noPortrait = R"({"entities":{"Q1689210":{"claims":{"P19":[]}}}})";
+	QVERIFY(ArtistImageProvider::commonsImageFileNames(noPortrait, "Q1689210").isEmpty());
+	const QByteArray deprecated = R"({"entities":{"Q255":{"claims":{"P18":[{"rank":"deprecated","mainsnak":{"datavalue":{"value":"Wrong.jpg"}}},{"rank":"normal","mainsnak":{"datavalue":{"value":"Beethoven.jpg"}}}]}}}})";
+	QCOMPARE(ArtistImageProvider::commonsImageFileNames(deprecated, "Q255"), QStringList{"Beethoven.jpg"});
 	QCOMPARE(ArtistImageProvider::retryState(0, 1001, 1000), ArtistImageProvider::NoRetryFailure);
 	QCOMPARE(ArtistImageProvider::retryState(1000, 1001, 1000), ArtistImageProvider::RetryDeferred);
 	QCOMPARE(ArtistImageProvider::retryState(1000, 2000, 1000), ArtistImageProvider::RetryExpired);

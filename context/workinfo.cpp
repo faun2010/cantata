@@ -810,6 +810,23 @@ QString stripHtmlTags(const QString& html)
 	return text;
 }
 
+bool isNonWorkPage(const QString& title, const QString& snippet)
+{
+	static const QRegularExpression indexRx(QStringLiteral("^(?:list of|lists of|category:|index of)\\b|\\(disambiguation\\)$"), QRegularExpression::CaseInsensitiveOption);
+	static const QRegularExpression otherTitleRx(QStringLiteral("\\([^)]*\\b(?:film|novel|photographer|composer|politician|software|video game)\\b[^)]*\\)$"), QRegularExpression::CaseInsensitiveOption);
+	// Look at the subject's definition, not incidental mentions of music
+	// later in the snippet (a novel can inspire a composition, for example).
+	static const QRegularExpression otherDefinitionRx(QStringLiteral("\\b(?:is|was)\\s+(?:an? |the )(?:(?!\\b(?:by|composed|written|composition|musical|orchestral|ballet|opera|song|album|suite|concerto|symphony|sonata|cantata|overture|oratorio|requiem|motet|poem)\\b)[^.;]){0,80}\\b(?:novel|film|photographer|composer|politician|software|video game)\\b"), QRegularExpression::CaseInsensitiveOption);
+	return title.contains(indexRx) || title.contains(otherTitleRx) || snippet.contains(otherDefinitionRx);
+}
+
+bool hasWorkDefinition(const QString& title, const QString& snippet)
+{
+	static const QRegularExpression musicTitleRx(QStringLiteral("\\([^)]*\\b(?:music|composition|ballet|opera|song|album|oratorio)\\b[^)]*\\)$"), QRegularExpression::CaseInsensitiveOption);
+	static const QRegularExpression definitionRx(QStringLiteral("\\b(?:is|was)\\s+(?:an? |the )[^.;]{0,100}\\b(?:composition|musical work|orchestral work|tone poem|symphonic poem|concerto|symphony|sonata|cantata|ballet|opera|oratorio|song|album|suite|overture|requiem|motet)\\b"), QRegularExpression::CaseInsensitiveOption);
+	return title.contains(musicTitleRx) || snippet.contains(definitionRx);
+}
+
 }// namespace
 
 QString selectSearchResult(const QByteArray& searchResponseJson, const Candidate& work)
@@ -828,9 +845,8 @@ QString selectSearchResult(const QByteArray& searchResponseJson, const Candidate
 	// Cantata is actually titled "Schweigt stille, plaudert nicht, BWV
 	// 211") and may not contain the generic work-type keyword at all - that
 	// is still the single strongest signal there is, so it wins outright
-	// and skips the keyword check entirely. Every weaker bucket requires
-	// the keyword in the title, so composer biography/list pages are still
-	// rejected.
+	// and skips the keyword check. All routes exclude non-work subjects;
+	// without a known keyword the weaker routes require a work definition.
 	QString titleCatalogueResult;
 	QString snippetCatalogueResult;
 	QString keywordSurnameResult;
@@ -842,6 +858,9 @@ QString selectSearchResult(const QByteArray& searchResponseJson, const Candidate
 			continue;
 		}
 		const QString snippet = stripHtmlTags(result.value(QLatin1String("snippet")).toString());
+		if (isNonWorkPage(title, snippet)) {
+			continue;
+		}
 
 		bool titleHasCatalogue = false;
 		bool snippetHasCatalogue = false;
@@ -856,7 +875,7 @@ QString selectSearchResult(const QByteArray& searchResponseJson, const Candidate
 			// "Op. 92") are disambiguation lists, not the work itself. Do not
 			// let their catalogue-number match outrank a real work result.
 			if (normalizedTitle.compare(normalizedCatalogue, Qt::CaseInsensitive) == 0) {
-				titleHasCatalogue = false;
+				continue;
 			}
 		}
 
@@ -871,6 +890,9 @@ QString selectSearchResult(const QByteArray& searchResponseJson, const Candidate
 		// (when one is known) - this rejects composer biography/list pages
 		// even when they otherwise mention the surname or catalogue number.
 		if (!work.genreKeyword.isEmpty() && !title.contains(work.genreKeyword, Qt::CaseInsensitive)) {
+			continue;
+		}
+		if (work.genreKeyword.isEmpty() && !hasWorkDefinition(title, snippet)) {
 			continue;
 		}
 		const bool surnameMatch = !work.surname.isEmpty() && (title.contains(work.surname, Qt::CaseInsensitive) || snippet.contains(work.surname, Qt::CaseInsensitive));

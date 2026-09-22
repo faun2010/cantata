@@ -1210,7 +1210,7 @@ bool CoverDialog::saveCover(const QString& src, const QImage& img)
             destName=d.absolutePath()+'/'+Covers::constArtistImage+ext;
         } else*/
 		{
-			destName = Utils::cacheDir(Covers::constCoverDir, true) + Covers::encodeName(song.albumArtist()) + ext;
+			destName = Utils::cacheDir(Covers::constCoverDir, true) + Covers::artistCacheName(song.albumArtist()) + ext;
 		}
 	}
 	else if (isComposer) {

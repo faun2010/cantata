@@ -28,6 +28,7 @@
 #include <QDate>
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 // Network/GUI-free helpers behind the "Composer of the Day" list: the
 // anniversary calendar, the famous-works LLM call, and the matching of a
@@ -56,6 +57,9 @@ struct Anniversary {
 	// The full ISO date of the birth/death, and how many years ago it was.
 	QString date;
 	int years = 0;
+	QString description;
+	QStringList aliases;
+	bool composer = true;
 };
 
 // Parses the anniversary calendar. Returns an empty list when the document
@@ -72,6 +76,14 @@ QList<Composer> parseCalendar(const QByteArray& json);
 // to "date" (a composer born on this day but after "date"'s year) is never
 // reported.
 QList<Anniversary> anniversariesFor(const QList<Composer>& composers, const QDate& date);
+
+// Parses only dated person entries from the matching OnThisDay music page.
+// A missing/mismatched canonical URL is rejected to avoid cached wrong-day data.
+QList<Anniversary> parseOnThisDay(const QByteArray& html, const QDate& date, bool birth);
+
+// Full-name identity matching, including comma-inverted names and explicit
+// aliases. Never matches an arbitrary surname substring.
+bool musicianMatches(const QString& tag, const QString& name, const QStringList& aliases = QStringList());
 
 // A work named by the LLM (or derived from the library).
 struct Work {
@@ -91,7 +103,7 @@ struct Work {
 // how many works are wanted, and (when known) the anniversary being marked.
 QString buildWorksSource(const QString& composer, int count = constWorksPerComposer);
 
-// Extracts at most "max" works from a "composer-works-v1" response.
+// Extracts at most min("max", 10) works from a "composer-works-v1" response.
 // Tolerates markdown code fences and surrounding prose; entries without a
 // title, and duplicates (compared by normalised title/catalogue), are
 // dropped. Returns an empty list when no usable JSON array is found.
@@ -123,8 +135,9 @@ struct Track {
 QList<int> selectWorkTracks(const QList<Track>& tracks, const Work& work);
 
 // The works the library itself has for this composer, most-recorded first -
-// the fallback used when no LLM answer is available. Works are derived from
-// the album groups' tags, deduplicated by normalised title.
+// the fallback used when no LLM answer is available. Prefer complete track
+// work titles over compilation album names; bare movement names fall back
+// to identifiable album works. Returns at most min(max, 10) distinct works.
 QList<Work> worksFromLibrary(const QList<Track>& tracks, int max = constWorksPerComposer);
 
 }// namespace ComposerDay

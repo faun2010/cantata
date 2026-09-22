@@ -22,6 +22,10 @@
  */
 
 #include "composerdaypage.h"
+#include "dayrecordings.h"
+#include "network/networkaccessmanager.h"
+#include <QSaveFile>
+#include <QSet>
 #include "context/composertable.h"
 #include "context/workinfo.h"
 #include "gui/stdactions.h"
@@ -37,7 +41,7 @@
 #include <QStandardPaths>
 #include <QTimer>
 
-static const QLatin1String constWorksContext("composer-works-v1");
+static const QLatin1String constWorksContext("musician-works-v1");
 
 // The anniversary calendar: a user override in the config directory when one
 // exists (so a user can add composers we do not ship), else the bundled
@@ -75,19 +79,23 @@ ComposerDayPage::ComposerDayPage(QWidget* p)
 	connect(MPDConnection::self(), SIGNAL(stateChanged(bool)), this, SLOT(connectionStateChanged(bool)));
 	connect(TranslationService::self(), SIGNAL(translationReady(QString, QString, QString)), this, SLOT(worksReady(QString, QString, QString)));
 	connect(view, SIGNAL(itemsSelected(bool)), this, SLOT(controlActions()));
+	connect(view, &ItemView::headerClicked, this, [this](int level) {
+		if (level == 0) emit close();
+	});
 
 	view->setModel(&model);
 	view->setMode(ItemView::Mode_DetailedTree);
 	view->alwaysShowHeader();
-	view->setInfoText(tr("This list follows the calendar: it shows the composers whose birth or death anniversary falls on today's date, "
-	                     "each with their most famous works and one recording of each taken from your library.")
-	                  + QLatin1String("\n\n\n") + tr("No composer in the calendar was born or died on this date."));
+	view->setInfoText(tr("Two daily lists from On This Day: birthdays and death anniversaries. Only recordings in your library are playable."));
 	init(ReplacePlayQueue | AppendToPlayQueue | Refresh);
 	controlActions();
 
 	Configuration config(metaObject()->className());
 	view->load(config);
 	calendar = ComposerDay::parseCalendar(readCalendar());
+	QFile recommendations(QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)).filePath("recommendedrecordings.json"));
+	if (!recommendations.exists()) recommendations.setFileName(":/recommendedrecordings.json");
+	if (recommendations.open(QIODevice::ReadOnly)) recordings = RecommendedRecordings::parseDataset(recommendations.readAll());
 
 	dayTimer = new QTimer(this);
 	dayTimer->setSingleShot(true);
@@ -96,6 +104,7 @@ ComposerDayPage::ComposerDayPage(QWidget* p)
 
 ComposerDayPage::~ComposerDayPage()
 {
+	cancelLookups();
 	Configuration config(metaObject()->className());
 	view->save(config);
 }
@@ -144,6 +153,9 @@ void ComposerDayPage::controlActions()
 
 void ComposerDayPage::cancelLookups()
 {
+	for (NetworkJob* job : dayJobs) { disconnect(job, nullptr, this, nullptr); job->cancelAndDelete(); }
+	dayJobs.clear();
+	view->hideSpinner();
 	for (const Lookup& lookup : lookups) {
 		if (!lookup.llmSource.isEmpty() && !lookup.haveWorks) {
 			TranslationService::self()->cancel(lookup.llmSource, constWorksContext);
@@ -164,21 +176,73 @@ void ComposerDayPage::rebuild(bool force)
 	builtFor = today;
 	scheduleDayChange();
 
-	const QList<ComposerDay::Anniversary> anniversaries = ComposerDay::anniversariesFor(calendar, today);
-	QList<ComposerDayModel::Composer> composers;
+	dayPeople.clear();
+	model.setComposers({});
+	pendingDays = 2;
+	view->showSpinner();
+	loadDay(true);
+	loadDay(false);
+}
+
+void ComposerDayPage::loadDay(bool birth)
+{
+	const QString kind = birth ? QStringLiteral("birthdays") : QStringLiteral("deaths");
+	const QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/music-day/";
+	const QString cachePath = cacheDir + kind + ".html";
+	const QByteArray stamp = builtFor.toString(Qt::ISODate).toUtf8() + '\n';
+	QFile cache(cachePath);
+	if (cache.open(QIODevice::ReadOnly)) {
+		const QByteArray data = cache.readAll();
+		if (data.startsWith(stamp)) {
+			const auto people = ComposerDay::parseOnThisDay(data.mid(stamp.size()), builtFor, birth);
+			if (!people.isEmpty()) {
+				dayPeople.append(people);
+				if (--pendingDays == 0) populate();
+				return;
+			}
+		}
+	}
+	const QString month = QLocale(QLocale::English).monthName(builtFor.month()).toLower();
+	NetworkJob* job = NetworkAccessManager::self()->get(QUrl("https://www.onthisday.com/music/" + kind + '/' + month + '/' + QString::number(builtFor.day())), 15000);
+	dayJobs.append(job);
+	const quint32 requestGeneration = generation;
+	connect(job, &NetworkJob::finished, this, [this, job, requestGeneration, birth, cacheDir, cachePath, stamp]() {
+		dayJobs.removeAll(job);
+		const QByteArray data = job->readAll();
+		const bool ok = job->ok();
+		job->deleteLater();
+		if (generation != requestGeneration) return;
+		const auto people = ok ? ComposerDay::parseOnThisDay(data, builtFor, birth) : QList<ComposerDay::Anniversary>();
+		if (!people.isEmpty()) {
+			dayPeople.append(people);
+			QDir().mkpath(cacheDir);
+			QSaveFile cache(cachePath);
+			if (cache.open(QIODevice::WriteOnly)) { cache.write(stamp + data); cache.commit(); }
+		} else {
+			for (const auto& person : ComposerDay::anniversariesFor(calendar, builtFor)) {
+				if (person.birth == birth) dayPeople.append(person);
+			}
+			emit error(tr("Could not load On This Day %1; using the bundled composer calendar.").arg(birth ? tr("birthdays") : tr("deaths")));
+		}
+		if (--pendingDays == 0) populate();
+	});
+}
+
+void ComposerDayPage::populate()
+{
+	const auto anniversaries = dayPeople;
 	for (const ComposerDay::Anniversary& anniversary : anniversaries) {
 		Lookup lookup;
 		lookup.anniversary = anniversary;
+		lookup.result.name = displayName(anniversary.name, anniversary.zh);
+		lookup.result.birth = anniversary.birth;
+		lookup.result.description = (anniversary.birth ? tr("Born %1 years ago today, on %2") : tr("Died %1 years ago today, on %2")).arg(anniversary.years).arg(anniversary.date);
 		lookups.append(lookup);
-
-		ComposerDayModel::Composer composer;
-		composer.name = displayName(anniversary.name, anniversary.zh);
-		composer.description = (anniversary.birth ? tr("Born %1 years ago today, on %2") : tr("Died %1 years ago today, on %2")).arg(anniversary.years).arg(anniversary.date);
-		composers.append(composer);
 	}
-	model.setComposers(composers);
+	model.setComposers({});
 
 	if (lookups.isEmpty()) {
+		view->hideSpinner();
 		return;
 	}
 
@@ -192,23 +256,12 @@ void ComposerDayPage::startLookup(int index)
 {
 	Lookup& lookup = lookups[index];
 
-	// The composer tag is spelled every which way ("Sibelius", "Sibelius,
-	// Jean", "Jean Sibelius"), so search on the surname and resolve what
-	// comes back - that also keeps a namesake's tracks out.
 	const QString surname = WorkInfo::composerSurname(lookup.anniversary.name);
-	emit search("search Composer " + MPDConnection::encodeName(surname.isEmpty() ? lookup.anniversary.name : surname),
-	            QLatin1String("CD:") + QString::number(generation) + QLatin1Char(':') + QString::number(index));
-
-	lookup.llmSource = ComposerDay::buildWorksSource(lookup.anniversary.name);
-	if (!TranslationService::self()->isEnabled()) {
-		lookup.haveWorks = true;
-		lookup.llmSource.clear();
-		return;
-	}
-	const QString answer = TranslationService::self()->translate(lookup.llmSource, constWorksContext);
-	if (answer != lookup.llmSource) {
-		// Cache hit - handled synchronously, via the same path as the signal.
-		worksReady(lookup.llmSource, constWorksContext, answer);
+	const QStringList fields = {QStringLiteral("Composer"), QStringLiteral("Artist"), QStringLiteral("AlbumArtist")};
+	lookup.pendingSearches = fields.size();
+	for (const QString& field : fields) {
+		emit search("search " + field.toUtf8() + " " + MPDConnection::encodeName(surname.isEmpty() ? lookup.anniversary.name : surname),
+		            "CD:" + QString::number(generation) + ':' + QString::number(index));
 	}
 }
 
@@ -224,19 +277,17 @@ void ComposerDayPage::searchResponse(const QString& id, const QList<Song>& songs
 	}
 
 	Lookup& lookup = lookups[index];
-	const QString surname = WorkInfo::composerSurname(lookup.anniversary.name);
+	QSet<QString> seen;
+	for (const auto& song : lookup.songs) seen.insert(song.file);
 	for (const Song& song : songs) {
-		if (!song.hasComposer()) {
-			continue;
-		}
-		const QString tagged = song.composer();
+		if (seen.contains(song.file)) continue;
+		const QString tagged = song.hasComposer() ? song.composer() : QString();
 		const QString resolved = ComposerTable::resolve(tagged);
-		// A composer the table does not know can only be matched on the
-		// surname; one it does know must resolve to this very composer, so a
-		// namesake (J.S. vs J.C. Bach) is not swept up.
-		if (resolved.isEmpty() ? !tagged.contains(surname, Qt::CaseInsensitive) : resolved != lookup.anniversary.name) {
-			continue;
-		}
+		const bool composerMatch = lookup.anniversary.composer &&
+		    (resolved.isEmpty() ? ComposerDay::musicianMatches(tagged, lookup.anniversary.name, lookup.anniversary.aliases) : resolved == lookup.anniversary.name);
+		if (!composerMatch && !ComposerDay::musicianMatches(song.artist, lookup.anniversary.name, lookup.anniversary.aliases)
+		    && !ComposerDay::musicianMatches(song.albumArtist(), lookup.anniversary.name, lookup.anniversary.aliases)) continue;
+		seen.insert(song.file);
 		ComposerDay::Track track;
 		track.file = song.file;
 		track.title = song.title;
@@ -252,8 +303,16 @@ void ComposerDayPage::searchResponse(const QString& id, const QList<Song>& songs
 		lookup.songs.append(song);
 		lookup.tracks.append(track);
 	}
+	if (--lookup.pendingSearches > 0) return;
 	lookup.haveTracks = true;
-	maybeFinish(index);
+	if (lookup.tracks.isEmpty() || !TranslationService::self()->isEnabled()) {
+		lookup.haveWorks = true;
+		maybeFinish(index);
+		return;
+	}
+	lookup.llmSource = QStringLiteral("Musician: ") + lookup.anniversary.name + "\nWorks wanted: 10\nProfession: " + (lookup.anniversary.description.isEmpty() ? QStringLiteral("composer") : lookup.anniversary.description);
+	const QString answer = TranslationService::self()->translate(lookup.llmSource, constWorksContext);
+	if (answer != lookup.llmSource) worksReady(lookup.llmSource, constWorksContext, answer);
 }
 
 void ComposerDayPage::worksReady(const QString& source, const QString& context, const QString& translation)
@@ -270,7 +329,6 @@ void ComposerDayPage::worksReady(const QString& source, const QString& context, 
 		lookup.haveWorks = true;
 		lookup.llmSource.clear();
 		maybeFinish(i);
-		return;
 	}
 }
 
@@ -282,56 +340,56 @@ void ComposerDayPage::maybeFinish(int index)
 	}
 	lookup.finished = true;
 
-	// Without an LLM answer (disabled, offline, or unparseable) the library
-	// itself names the works: the ones the user owns the most recordings of.
-	QList<ComposerDay::Work> works = lookup.works;
-	if (works.isEmpty()) {
-		works = ComposerDay::worksFromLibrary(lookup.tracks);
-	}
-
-	ComposerDayModel::Composer composer = model.composers().at(index);
+	ComposerDayModel::Composer& composer = lookup.result;
 	composer.loading = false;
 	composer.works.clear();
-	int found = 0;
-	for (const ComposerDay::Work& work : works) {
-		ComposerDayModel::Work entry;
-		entry.title = displayName(work.displayTitle(), work.zh);
-		const QList<int> selected = ComposerDay::selectWorkTracks(lookup.tracks, work);
-		if (selected.isEmpty()) {
-			entry.description = tr("No recording of this work in your library");
-		}
-		else {
-			const Song& first = lookup.songs.at(selected.first());
-			quint32 secs = 0;
-			for (int trackIndex : selected) {
-				entry.files.append(lookup.tracks.at(trackIndex).file);
-				secs += lookup.songs.at(trackIndex).time;
+	QSet<QString> usedFiles;
+	const auto addWorks = [&](const QList<ComposerDay::Work>& works) {
+		for (const auto& work : works) {
+			if (composer.works.size() >= ComposerDay::constWorksPerComposer) break;
+			ComposerDayModel::Work entry;
+			entry.title = displayName(work.displayTitle(), work.zh);
+			QStringList descriptions;
+			const auto selectedRecordings = DayRecordings::selectRecordings(lookup.anniversary.name, lookup.tracks, work, recordings);
+			for (const auto& recording : selectedRecordings) {
+				bool overlaps = false;
+				for (int i : recording.indices) if (usedFiles.contains(lookup.tracks.at(i).file)) overlaps = true;
+				if (recording.indices.isEmpty() || overlaps) continue;
+				const Song& first = lookup.songs.at(recording.indices.first());
+				quint32 secs = 0;
+				for (int i : recording.indices) {
+					entry.files.append(lookup.tracks.at(i).file);
+					usedFiles.insert(lookup.tracks.at(i).file);
+					secs += lookup.songs.at(i).time;
+				}
+				descriptions.append(tr("%1 - %2 (%3 tracks, %4)").arg(first.albumArtist(), first.album).arg(recording.indices.size()).arg(Utils::formatTime(secs))
+				    + " - " + (recording.recommended ? tr("Recommended recording") : tr("Library recording (recommendation unverified)")));
 			}
-			entry.description = tr("%1 - %2 (%3 tracks, %4)").arg(first.albumArtist(), first.album).arg(selected.count()).arg(Utils::formatTime(secs));
-			++found;
+			if (entry.files.isEmpty()) continue;
+			entry.description = descriptions.join(QStringLiteral("\n"));
+			composer.works.append(entry);
 		}
-		composer.works.append(entry);
-	}
-
-	if (composer.works.isEmpty()) {
-		composer.description += QLatin1String(" - ") + tr("nothing by this composer in your library");
-	}
-	else {
-		composer.description += QLatin1String(" - ") + tr("%1 of %n work(s) in your library", "", composer.works.count()).arg(found);
-	}
-	model.updateComposer(index, composer);
+	};
+	// Famous works take precedence; without playable suggestions use the
+	// library's most-recorded works, never an unbounded whole-album fallback.
+	addWorks(lookup.works);
+	if (composer.works.isEmpty()) addWorks(ComposerDay::worksFromLibrary(lookup.tracks));
+	composer.description += " - " + tr("%1 works in your library").arg(composer.works.size());
 
 	for (const Lookup& other : lookups) {
 		if (!other.finished) {
 			return;
 		}
 	}
+	QList<ComposerDayModel::Composer> available;
+	for (const auto& item : lookups) available.append(item.result);
+	model.setComposers(available);
 	view->hideSpinner();
-	// Only open up the composers the library can actually play; one with no
-	// recordings stays a single collapsed line rather than ten dead rows.
+	controlActions();
 	for (int row = 0; row < model.composers().count(); ++row) {
 		if (!model.composers().at(row).files().isEmpty()) {
-			view->expand(model.index(row, 0, QModelIndex()), true);
+			view->expand(model.composerIndex(row).parent(), true);
+			view->expand(model.composerIndex(row), true);
 		}
 	}
 }

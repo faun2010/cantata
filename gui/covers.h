@@ -34,6 +34,7 @@
 #include <QObject>
 #include <QPixmap>
 #include <QSet>
+#include <QSharedPointer>
 #include <QStringList>
 #include <atomic>
 
@@ -75,6 +76,9 @@ public:
 		bool discogsLookupPending = false;
 		bool musicBrainzLinksLoaded = false;
 		bool wikipediaTried = false;
+		bool wikipediaQualified = false;
+		quint64 portraitId = 0;
+		int portraitPriority = 0;
 		JobType type;
 		int level;
 	};
@@ -95,6 +99,9 @@ Q_SIGNALS:
 
 private:
 	void downloadViaMpd(Job& job);
+	void startPortrait(Job job);
+	void finishPortrait(const Job& job, const QImage& image = QImage(), const QByteArray& raw = QByteArray(), bool deadline = false);
+	bool portraitActive(const Job& job) const;
 	bool downloadViaHttp(Job& job, JobType type);
 	void downloadViaRemote(Job& job);
 	void downloadViaWikipedia(Job& job);
@@ -112,7 +119,6 @@ private:
 private Q_SLOTS:
 	void mpdAlbumArt(const Song& song, const QByteArray& data);
 	void remoteCallFinished();
-	void lastFmArtistCallFinished();
 	void discogsArtistCallFinished();
 	void musicBrainzSearchFinished();
 	void musicBrainzArtistCallFinished();
@@ -128,6 +134,17 @@ private:
 	NetworkAccessManager* network();
 
 private:
+	struct PortraitSearch {
+		Job job;
+		int pending = 2;
+		int score = -1;
+		QImage image;
+		QByteArray raw;
+		QString cacheToken;
+		explicit PortraitSearch(const Job& j) : job(j) {}
+	};
+	QHash<quint64, QSharedPointer<PortraitSearch>> portraits;
+	quint64 nextPortraitId = 0;
 	QHash<NetworkJob*, Job> jobs;
 	QHash<QString, Job> mpdJobs;
 
@@ -236,6 +253,7 @@ public:
 	static const QStringList& standardNames();
 	static QString encodeName(QString name);
 	static QString albumFileName(const Song& song);
+	static QString artistCacheName(const QString& artist);
 	static QString fixArtist(const QString& artist);
 	static bool isJpg(const QByteArray& data);
 	static bool isPng(const QByteArray& data);
@@ -311,6 +329,7 @@ private:
 	QCache<QString, QPixmap> cache;
 	QMap<QString, QString> filenames;
 	QHash<QString, qint64> artistImageFailures;
+	QHash<QString, Song> identityRetrySongs;
 	CoverDownloader* downloader;
 	CoverLocator* locator;
 	CoverLoader* loader;

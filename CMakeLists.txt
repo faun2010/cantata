@@ -473,6 +473,7 @@ target_sources(
         context/artistview.cpp
         context/albumview.cpp
         context/workinfo.cpp
+        context/composeridentities.cpp
         context/composertable.cpp
         context/workdossier.cpp
         context/recommendedrecordings.cpp
@@ -531,6 +532,7 @@ target_sources(
         playlists/storedplaylistspage.cpp
         playlists/rulesplaylists.cpp
         playlists/smartfilter.cpp
+        playlists/dayrecordings.cpp
         playlists/composerday.cpp
         playlists/composerdaymodel.cpp
         playlists/composerdaypage.cpp

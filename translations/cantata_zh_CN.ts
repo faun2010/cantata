@@ -11268,4 +11268,28 @@ If you rename a file (or the folder it is within), then the rating associated wi
         <translation type="unfinished">重新加载</translation>
     </message>
 </context>
+<context><name>ComposerDayModel</name>
+    <message><source>Today’s Birthdays</source><translation>今日诞辰</translation></message>
+    <message><source>Today’s Death Anniversaries</source><translation>今日忌日</translation></message>
+    <message><source>Today in Music</source><translation>今日音乐纪念</translation></message>
+    <message><source>Birthdays and death anniversaries from On This Day</source><translation>今日出生与逝世的音乐家</translation></message>
+</context>
+<context><name>PlaylistsPage</name>
+    <message><source>Today in Music</source><translation>今日音乐纪念</translation></message>
+    <message><source>Birthdays and death anniversaries from On This Day</source><translation>今日出生与逝世的音乐家</translation></message>
+</context>
+<context><name>ComposerDayPage</name>
+    <message><source>Two daily lists from On This Day: birthdays and death anniversaries. Only recordings in your library are playable.</source><translation>根据 On This Day 动态生成今日诞辰、今日忌日两个列表，仅播放曲库已有的录音。</translation></message>
+    <message><source>Could not load On This Day %1; using the bundled composer calendar.</source><translation>无法读取 On This Day 的%1名单，暂用内置作曲家日历。</translation></message>
+    <message><source>birthdays</source><translation>诞辰</translation></message>
+    <message><source>deaths</source><translation>忌日</translation></message>
+    <message><source>Recommended recording</source><translation>推荐录音</translation></message>
+    <message><source>Library recording (recommendation unverified)</source><translation>曲库录音（未核实推荐版本）</translation></message>
+    <message><source>Library album (representative status unverified)</source><translation>曲库专辑（未核实代表性）</translation></message>
+    <message><source>No matching recordings in your library</source><translation>曲库中没有匹配的录音</translation></message>
+    <message><source>Born %1 years ago today, on %2</source><translation>诞辰 %1 周年，出生于 %2</translation></message>
+    <message><source>Died %1 years ago today, on %2</source><translation>逝世 %1 周年，逝世于 %2</translation></message>
+    <message><source>%1 - %2 (%3 tracks, %4)</source><translation>%1 - %2（%3 首，%4）</translation></message>
+    <message><source>%1 works in your library</source><translation>曲库中选取 %1 部作品</translation></message>
+</context>
 </TS>

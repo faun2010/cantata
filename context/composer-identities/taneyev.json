@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "people": [
+    {
+      "canonical": "Sergey Taneyev",
+      "imslp": "Category:Taneyev,_Sergey",
+      "born": "1856-11-25",
+      "died": "1915-06-19",
+      "aliases": [
+        "Sergei Taneyev",
+        "Sergey Ivanovich Taneyev",
+        "Sergei Ivanovich Taneyev",
+        "Sergei Ivanovich Taneev",
+        "Sergei Taneev",
+        "Sergey Taneev",
+        "Сергей Иванович Танеев",
+        "谢尔盖·伊万诺维奇·塔涅耶夫"
+      ],
+      "wikipedia": {
+        "en": "Sergei Taneyev"
+      },
+      "musicbrainz": "e61ad00c-fbe8-4ca1-ac14-2e0872257057",
+      "sources": [
+        "https://imslp.org/wiki/Category:Taneyev,_Sergey"
+      ],
+      "zh": "谢尔盖·伊万诺维奇·塔涅耶夫"
+    }
+  ]
+}
