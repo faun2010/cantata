@@ -1,0 +1,31 @@
+context/composeridentities.cpp
+  s_f4db4c8c9a07e9::t_36bcb973363475 7,14,22-24,58-75,85,113,135-136,150-153,155,161,172
+context/composertable.cpp
+  s_05e00573289c35::t_2956161f9dad2e 369-370
+tests/composeridentities_test.cpp
+  s_f4db4c8c9a07e9::t_c3879cd7e3dc41 95-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.7.5",
+  "base_commit_sha": "d54c2f5531dae7fd34c422b9a01a33f60258961a",
+  "prompts": {},
+  "sessions": {
+    "s_05e00573289c35": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c69d-f4ed-79b2-b762-67734fe68f36",
+        "model": "unknown"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    },
+    "s_f4db4c8c9a07e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c69e-a578-7361-aa4e-bcb9a65ffead",
+        "model": "unknown"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    }
+  }
+}
