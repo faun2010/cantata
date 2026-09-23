@@ -92,6 +92,59 @@ private slots:
 		html.replace("Compositions by:", "Performances by:");
 		QVERIFY(ComposerIdentities::fromImslp(html, "Category:Taneyev,_Sergey", "Sergei Taneyev").isEmpty());
 	}
+	void indexTracksReloadConflictAndRemovedAliases()
+	{
+		QJsonObject first{{"canonical", "First Person"}, {"imslp", "Category:Person,_First"},
+		    {"aliases", QJsonArray{"Shared Náme", "Name, Shared", "Old Alias"}}};
+		const QJsonObject second{{"canonical", "Second Person"}, {"imslp", "Category:Person,_Second"},
+		    {"aliases", QJsonArray{"Shared Name"}}};
+		write(QJsonDocument(QJsonObject{{"version", 1}, {"people", QJsonArray{first}}}).toJson());
+		bool conflict = true;
+		QCOMPARE(ComposerIdentities::lookup("Shared Name", &conflict).value("canonical").toString(), QString("First Person"));
+		QVERIFY(!conflict);// Repeated normalized aliases on the same person are safe.
+		const QString before = ComposerIdentities::revision();
+		write(QJsonDocument(QJsonObject{{"version", 1}, {"people", QJsonArray{first, second}}}).toJson());
+		QVERIFY(ComposerIdentities::lookup("Name, Shared", &conflict).isEmpty());
+		QVERIFY(conflict);
+		QVERIFY(ComposerIdentities::hints("Shared Name").isEmpty());
+		QVERIFY(!ComposerIdentities::hints("First Person").isEmpty());
+		const QString conflicted = ComposerIdentities::revision();
+		QVERIFY(before != conflicted);
+		write("broken json");
+		QVERIFY(ComposerIdentities::lookup("Shared Name", &conflict).isEmpty());
+		QVERIFY(conflict);
+		QCOMPARE(ComposerIdentities::revision(), conflicted);
+		first["aliases"] = QJsonArray{"Shared Name", "Replacement Alias"};
+		write(QJsonDocument(QJsonObject{{"version", 1}, {"people", QJsonArray{first}}}).toJson());
+		QCOMPARE(ComposerIdentities::lookup("Shared Name", &conflict).value("canonical").toString(), QString("First Person"));
+		QVERIFY(!conflict);
+		QVERIFY(ComposerIdentities::lookup("Old Alias").isEmpty());
+		QVERIFY(ComposerIdentities::lookup("Second Person").isEmpty());
+		QVERIFY(!ComposerIdentities::lookup("Replacement Alias").isEmpty());
+		QVERIFY(!ComposerIdentities::hints("Shared Name").isEmpty());
+	}
+	void indexTracksMergeAndConfigurationSwitch()
+	{
+		const QJsonObject person{{"canonical", "Merged Person"}, {"imslp", "Category:Person,_Merged"},
+		    {"aliases", QJsonArray{"Fresh Alias"}}};
+		QVERIFY(ComposerIdentities::lookup("Fresh Alias").isEmpty());
+		const QString before = ComposerIdentities::revision();
+		QString error;
+		QVERIFY2(ComposerIdentities::mergeVerified(person, &error), qPrintable(error));
+		QCOMPARE(ComposerIdentities::lookup("Fresh Alias").value("canonical").toString(), QString("Merged Person"));
+		QVERIFY(before != ComposerIdentities::revision());
+		const QString previousPath = ComposerIdentities::configurationPath();
+		struct RestoreConfiguration {
+			QString path;
+			~RestoreConfiguration() { ComposerIdentities::setConfigurationFile(path); }
+		} restore{previousPath};
+		ComposerIdentities::setConfigurationFile(directory.filePath("malformed.json"));
+		write("invalid initial file");
+		QVERIFY(ComposerIdentities::lookup("Fresh Alias").isEmpty());
+		QVERIFY(ComposerIdentities::hints("Fresh Alias").isEmpty());
+		ComposerIdentities::setConfigurationFile(previousPath);
+		QCOMPARE(ComposerIdentities::lookup("Fresh Alias").value("canonical").toString(), QString("Merged Person"));
+	}
 };
 QTEST_GUILESS_MAIN(ComposerIdentitiesTest)
 #include "composeridentities_test.moc"

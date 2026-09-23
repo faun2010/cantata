@@ -366,7 +366,8 @@ static QString biographyBuiltin(const QString& rawText)
 	if (parts.size() == 2) text = parts.at(1).trimmed() + QLatin1Char(' ') + parts.first().trimmed();
 	auto key = [](const QString& name) {
 		QString result = stripDiacritics(name).toCaseFolded();
-		result.remove(QRegularExpression(QStringLiteral("[\\s.·’'\\-]+")));
+		static const QRegularExpression punctuation(QStringLiteral("[\\s.·’'\\-]+"));
+		result.remove(punctuation);
 		return result;
 	};
 	const QString input = key(text);
