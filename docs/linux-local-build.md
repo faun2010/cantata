@@ -10,7 +10,28 @@ cd cantata
 ./mybuild.sh --run      # 构建成功后直接启动 cantata
 ```
 
-构建目录可用 `CANTATA_BUILD_DIR` 覆盖，并行度可用 `CANTATA_BUILD_JOBS` 覆盖。
+也可在项目根目录直接构建并安装给当前用户：
+
+```sh
+make
+make install
+rehash              # 已打开的 zsh 终端刷新命令路径缓存
+command -v cantata   # 应为 ~/.local/bin/cantata
+```
+
+`make install` 会先确保构建完成，再把程序、翻译、图标和桌面文件安装到
+`~/.local`。在本机新开的终端和桌面会话中，`~/.local/bin` 排在 `/usr/bin` 前；
+已打开的 zsh 终端可能缓存了 `/usr/bin/cantata`，需运行一次 `rehash`。
+若该终端的 `PATH` 没有包含 `~/.local/bin`，先执行
+`export PATH="$HOME/.local/bin:$PATH"`，再执行 `rehash`。
+刷新后，终端的 `cantata` 和原有桌面入口的 `Exec=cantata` 会使用新版本。软件包管理器拥有的
+`/usr/bin/cantata` 不被改写。可用 `make PREFIX=/absolute/path install`
+指定其他用户可写的位置；该路径的 `bin` 也须位于 `PATH` 前部。
+中文界面翻译使用项目内私有的 Qt6 `lrelease` 生成；若工具在其他位置，
+可传入 `make LRELEASE=/absolute/path/to/lrelease install`。
+
+直接运行脚本时，构建目录可用 `CANTATA_BUILD_DIR` 覆盖；使用 Makefile 时传入
+`make BUILD_DIR=/absolute/path`。并行度可用 `CANTATA_BUILD_JOBS` 覆盖。
 
 ## 构建与运行
 
