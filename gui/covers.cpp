@@ -681,7 +681,11 @@ void CoverDownloader::download(const Song& song)
 
 	Job job(song, dirName);
 
-	if (!song.isArtistImageRequest() && !song.isComposerImageRequest() && MPDConnection::self()->supportsCoverDownload()) {
+	// Artist portraits use online providers, independently of the MPD music directory.
+	if (song.isArtistImageRequest()) {
+		downloadViaRemote(job);
+	}
+	else if (!song.isComposerImageRequest() && MPDConnection::self()->supportsCoverDownload()) {
 		downloadViaMpd(job);
 	}
 	else if (!MPDConnection::self()->getDetails().dir.isEmpty() && (MPDConnection::self()->getDetails().dir.startsWith(QLatin1String("http://"), Qt::CaseInsensitive) || MPDConnection::self()->getDetails().dir.startsWith(QLatin1String("https://"), Qt::CaseInsensitive))) {
