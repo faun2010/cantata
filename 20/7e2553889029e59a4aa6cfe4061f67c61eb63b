@@ -1,0 +1,19 @@
+scripts/build-linux-local.sh
+  s_05e00573289c35::t_83057fa9d07308 26-29,31-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.7.5",
+  "base_commit_sha": "207e2553889029e59a4aa6cfe4061f67c61eb63b",
+  "prompts": {},
+  "sessions": {
+    "s_05e00573289c35": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c69d-f4ed-79b2-b762-67734fe68f36",
+        "model": "unknown"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    }
+  }
+}
