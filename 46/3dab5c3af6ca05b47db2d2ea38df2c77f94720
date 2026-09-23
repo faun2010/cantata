@@ -1,0 +1,43 @@
+gui/artistimageprovider.h
+  s_da9baa7fcb3d0e::t_0ab2050eb66771 203-205,214
+gui/covers.cpp
+  s_da9baa7fcb3d0e::t_1f91c0ae7f3c11 759-760,779-785,807-808
+tests/artistimageprovider_test.cpp
+  s_da9baa7fcb3d0e::t_b5bacbb5714c1c 24-36
+gui/covers.h
+  s_f4db4c8c9a07e9::t_86d851de5835d9 141
+tests/portraitqueue_probe.cpp
+  s_05e00573289c35::t_8bbf77b4d3b604 1-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.7.5",
+  "base_commit_sha": "463dab5c3af6ca05b47db2d2ea38df2c77f94720",
+  "prompts": {},
+  "sessions": {
+    "s_05e00573289c35": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c69d-f4ed-79b2-b762-67734fe68f36",
+        "model": "unknown"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    },
+    "s_da9baa7fcb3d0e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ae47959-5180-4060-91d0-826f9136d440",
+        "model": "claude-opus-5"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    },
+    "s_f4db4c8c9a07e9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c69e-a578-7361-aa4e-bcb9a65ffead",
+        "model": "unknown"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    }
+  }
+}
