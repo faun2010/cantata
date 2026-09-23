@@ -24,7 +24,9 @@ command -v cantata   # 应为 ~/.local/bin/cantata
 已打开的 zsh 终端可能缓存了 `/usr/bin/cantata`，需运行一次 `rehash`。
 若该终端的 `PATH` 没有包含 `~/.local/bin`，先执行
 `export PATH="$HOME/.local/bin:$PATH"`，再执行 `rehash`。
-刷新后，终端的 `cantata` 和原有桌面入口的 `Exec=cantata` 会使用新版本。软件包管理器拥有的
+安装时还会用当前用户的 `cantata.desktop` 覆盖系统同名启动项，将 Win+A 中的
+Cantata 明确指向 `~/.local/bin/cantata`，并隐藏另一个重复入口。
+刷新后，终端的 `cantata` 也会使用新版本。软件包管理器拥有的
 `/usr/bin/cantata` 不被改写。可用 `make PREFIX=/absolute/path install`
 指定其他用户可写的位置；该路径的 `bin` 也须位于 `PATH` 前部。
 中文界面翻译使用项目内私有的 Qt6 `lrelease` 生成；若工具在其他位置，

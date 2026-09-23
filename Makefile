@@ -27,5 +27,9 @@ install: all
 	@for qm in "$(abspath $(BUILD_DIR))"/translations/cantata_*.qm; do \
 		install -m 644 "$$qm" "$(abspath $(PREFIX))/share/Cantata/translations/" || exit $$?; \
 	done
+	@cp "$(abspath $(BUILD_DIR))/dog.unix.cantata.Cantata.desktop" "$(abspath $(PREFIX))/share/applications/cantata.desktop"
+	@desktop-file-edit --set-key=Exec --set-value="$(abspath $(PREFIX))/bin/cantata" "$(abspath $(PREFIX))/share/applications/cantata.desktop"
+	@desktop-file-edit --set-key=NoDisplay --set-value=true "$(abspath $(PREFIX))/share/applications/dog.unix.cantata.Cantata.desktop"
+	@update-desktop-database "$(abspath $(PREFIX))/share/applications"
 	@printf 'Installed: %s/bin/cantata\n' "$(abspath $(PREFIX))"
 	@printf 'For an already-open zsh terminal, run: rehash\n'
