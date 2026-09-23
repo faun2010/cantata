@@ -1,0 +1,21 @@
+Makefile
+  s_05e00573289c35::t_530b1989bd29ae 30-33
+docs/linux-local-build.md
+  s_05e00573289c35::t_af258ce234021e 27-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.7.5",
+  "base_commit_sha": "a6f0fc4d80aa6565455ae35763fe7850853542da",
+  "prompts": {},
+  "sessions": {
+    "s_05e00573289c35": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c69d-f4ed-79b2-b762-67734fe68f36",
+        "model": "unknown"
+      },
+      "human_author": "faun <faun2010@gmail.com>"
+    }
+  }
+}
