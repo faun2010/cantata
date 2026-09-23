@@ -138,6 +138,7 @@ private:
 		Job job;
 		int pending = 2;
 		int score = -1;
+		bool deadlineReached = false;
 		QImage image;
 		QByteArray raw;
 		QString cacheToken;

@@ -21,6 +21,19 @@ private Q_SLOTS:
 		corrupt.write("invalid"); corrupt.close();
 		QCOMPARE(ArtistImageProvider::cachedFailureTime(path), qint64(0));
 	}
+	void retriesLegacyDeadlineFailures()
+	{
+		QTemporaryDir dir;
+		QVERIFY(dir.isValid());
+		const QString path = dir.filePath("artist.failed");
+		QFile old(path);
+		QVERIFY(old.open(QIODevice::WriteOnly));
+		old.write("1000000");
+		old.close();
+		QCOMPARE(ArtistImageProvider::cachedFailureTime(path), qint64(0));
+		QVERIFY(ArtistImageProvider::cacheFailure(path, 1000001));
+		QCOMPARE(ArtistImageProvider::cachedFailureTime(path), qint64(1000001));
+	}
 	void skipsDeprecatedAndDuplicateCommonsImages()
 	{
 		const QByteArray data = R"({"entities":{"Q1":{"claims":{"P18":[{"rank":"deprecated","mainsnak":{"datavalue":{"value":"old.jpg"}}},{"mainsnak":{"datavalue":{"value":"portrait.jpg"}}},{"mainsnak":{"datavalue":{"value":"portrait.jpg"}}},{"mainsnak":{"datavalue":{"value":"photo.jpg"}}}]}}}})";

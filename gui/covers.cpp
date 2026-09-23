@@ -756,7 +756,8 @@ void CoverDownloader::startPortrait(Job job)
 	auto state = QSharedPointer<PortraitSearch>::create(job);
 	state->cacheToken = token;
 	portraits.insert(job.portraitId, state);
-	// A slow/queued provider cannot keep an otherwise usable portrait hidden.
+	// After this interval, publish any usable portrait without waiting for
+	// every provider. Queueing behind a rate limit is not a negative lookup.
 	QTimer::singleShot(12000, this, [this, job]() { finishPortrait(job, QImage(), QByteArray(), true); });
 	Job wikipedia = job;
 	wikipedia.portraitPriority = 40;
@@ -775,7 +776,13 @@ void CoverDownloader::finishPortrait(const Job& job, const QImage& image, const 
 	if (score > state->score) {
 		state->score = score; state->image = image; state->raw = raw;
 	}
-	if (!deadline && --state->pending > 0) return;
+	if (deadline) state->deadlineReached = true;
+	else --state->pending;
+	if (state->pending > 0 && (!state->deadlineReached || state->image.isNull())) {
+		if (state->deadlineReached)
+			DBUG << "portrait waiting for providers after selection deadline" << job.song.albumArtist() << state->pending;
+		return;
+	}
 	portraits.remove(job.portraitId);
 	for (auto it = jobs.begin(); it != jobs.end();) {
 		if (it.value().portraitId != job.portraitId) { ++it; continue; }
@@ -797,7 +804,8 @@ void CoverDownloader::finishPortrait(const Job& job, const QImage& image, const 
 		file = saveImg(state->job, selected, state->raw);
 		if (!file.isEmpty()) clearScaledCache(job.song);
 	}
-	DBUG << "portrait selected" << job.song.albumArtist() << state->score << file << "deadline" << deadline;
+	DBUG << "portrait selected" << job.song.albumArtist() << state->score << file
+	     << "selection deadline reached" << state->deadlineReached << "pending providers" << state->pending;
 	emit artistImage(job.song, selected, file);
 }
 

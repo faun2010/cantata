@@ -4,12 +4,14 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QSet>
 #include <QStandardPaths>
 #include <QUrl>
 
@@ -17,7 +19,9 @@ namespace {
 QMutex mutex;
 QString configuredPath;
 QJsonArray people;
-QByteArray lastData;
+QHash<QString, QJsonObject> peopleByName;
+QSet<QString> conflictingNames;
+QString currentRevision;
 QByteArray lastExternal;
 QString lastPath;
 QDateTime lastModified;
@@ -51,6 +55,24 @@ bool valid(const QJsonObject& p)
 			&& p.value("imslp").toString().startsWith("Category:")
 			&& p.value("imslp").toString().contains(',') && p.value("aliases").isArray();
 }
+void setPeople(const QJsonArray& next)
+{
+	people = next;
+	peopleByName.clear();
+	conflictingNames.clear();
+	for (const auto& item : people) {
+		const auto person = item.toObject();
+		for (const auto& name : names(person)) {
+			const QString key = ComposerIdentities::nameKey(name);
+			const auto previous = peopleByName.constFind(key);
+			if (previous != peopleByName.constEnd() && previous.value().value("imslp") != person.value("imslp"))
+				conflictingNames.insert(key);
+			peopleByName.insert(key, person);
+		}
+	}
+	const QByteArray data = QJsonDocument(QJsonObject{{"people", people}}).toJson(QJsonDocument::Compact);
+	currentRevision = QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
+}
 void reload()
 {
 	const QString path = ComposerIdentities::configurationPath();
@@ -60,8 +82,7 @@ void reload()
 	QJsonArray next;
 	if (bundled.open(QIODevice::ReadOnly)) next = QJsonDocument::fromJson(bundled.readAll()).object().value("people").toArray();
 	if (!loaded || path != lastPath) {
-		people = next;
-		lastData = QJsonDocument(QJsonObject{{"people", people}}).toJson(QJsonDocument::Compact);
+		setPeople(next);
 	}
 	// Remember even a malformed revision, retaining the last good data;
 	// repeated paint/lookup calls must not continually reparse a broken file.
@@ -89,8 +110,7 @@ void reload()
 			if (!replaced) next.append(p);
 		}
 	}
-	people = next;
-	lastData = QJsonDocument(QJsonObject{{"people", people}}).toJson(QJsonDocument::Compact);
+	setPeople(next);
 	lastExternal = data;
 	lastPath = path;
 	lastModified = info.lastModified();
@@ -112,7 +132,8 @@ QString ComposerIdentities::configurationPath()
 QString ComposerIdentities::nameKey(const QString& raw)
 {
 	QString value = raw.trimmed();
-	value.remove(QRegularExpression("\\s*\\(\\d{4}\\s*[-–]\\s*\\d{4}\\)\\s*$"));
+	static const QRegularExpression dates("\\s*\\(\\d{4}\\s*[-–]\\s*\\d{4}\\)\\s*$");
+	value.remove(dates);
 	const auto parts = value.split(',');
 	if (parts.size() == 2) value = parts[1].trimmed() + " " + parts[0].trimmed();
 	QString key;
@@ -125,28 +146,19 @@ QJsonObject ComposerIdentities::lookup(const QString& name, bool* conflict)
 	QMutexLocker lock(&mutex);
 	reload();
 	if (conflict) *conflict = false;
-	QJsonObject found;
 	const QString key = nameKey(name);
-	if (key.isEmpty()) return found;
-	for (const auto& item : people) {
-		auto p = item.toObject();
-		for (const auto& alias : names(p))
-			if (nameKey(alias) == key) {
-				if (!found.isEmpty() && found.value("imslp") != p.value("imslp")) {
-					if (conflict) *conflict = true;
-					return {};
-				}
-				found = p;
-				break;
-			}
+	if (key.isEmpty()) return {};
+	if (conflictingNames.contains(key)) {
+		if (conflict) *conflict = true;
+		return {};
 	}
-	return found;
+	return peopleByName.value(key);
 }
 QString ComposerIdentities::revision()
 {
 	QMutexLocker lock(&mutex);
 	reload();
-	return QString::fromLatin1(QCryptographicHash::hash(lastData, QCryptographicHash::Sha256).toHex());
+	return currentRevision;
 }
 QString ComposerIdentities::hints(const QString& source)
 {
@@ -157,14 +169,7 @@ QString ComposerIdentities::hints(const QString& source)
 		const auto p = item.toObject();
 		for (const QString& alias : names(p))
 			if (!alias.isEmpty() && source.contains(alias, Qt::CaseInsensitive)) {
-				bool ambiguous = false;
-				for (const auto& other : people) {
-					const auto q = other.toObject();
-					if (q.value("imslp") == p.value("imslp")) continue;
-					for (const auto& n : names(q))
-						if (nameKey(n) == nameKey(alias)) ambiguous = true;
-				}
-				if (ambiguous) continue;
+				if (conflictingNames.contains(nameKey(alias))) continue;
 				relevant.append(p);
 				break;
 			}

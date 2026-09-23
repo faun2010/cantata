@@ -200,6 +200,9 @@ inline qint64 cachedFailureTime(const QString& path)
 {
 	QFile file(path);
 	if (!file.open(QIODevice::ReadOnly)) return 0;
+	// Older records may represent a provider that was still queued when the
+	// portrait deadline expired. Retry those once without invalidating images.
+	if (file.readLine(32) != "providers-complete-v2\n") return 0;
 	bool ok = false;
 	const qint64 timestamp = file.read(32).trimmed().toLongLong(&ok);
 	return ok && timestamp > 0 ? timestamp : 0;
@@ -208,7 +211,7 @@ inline qint64 cachedFailureTime(const QString& path)
 inline bool cacheFailure(const QString& path, qint64 timestamp)
 {
 	QSaveFile file(path);
-	const QByteArray data = QByteArray::number(timestamp);
+	const QByteArray data = "providers-complete-v2\n" + QByteArray::number(timestamp);
 	return file.open(QIODevice::WriteOnly) && file.write(data) == data.size() && file.commit();
 }
 

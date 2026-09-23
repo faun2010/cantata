@@ -23,11 +23,20 @@ fi
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 build_dir="${CANTATA_BUILD_DIR:-$project_dir/build}"
 
-cmake -S "$project_dir" -B "$build_dir" -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DENABLE_HTTP_STREAM_PLAYBACK=OFF \
-    -DBUNDLED_KCATEGORIZEDVIEW=ON \
+cmake_args=(
+    -DCMAKE_BUILD_TYPE=Release
+    -DENABLE_HTTP_STREAM_PLAYBACK=OFF
+    -DBUNDLED_KCATEGORIZEDVIEW=ON
     -DBUNDLED_KARCHIVE=ON
+)
+if [[ -n "${CANTATA_INSTALL_PREFIX:-}" ]]; then
+    if [[ "$CANTATA_INSTALL_PREFIX" != /* ]]; then
+        echo "CANTATA_INSTALL_PREFIX must be an absolute path" >&2
+        exit 2
+    fi
+    cmake_args+=("-DCMAKE_INSTALL_PREFIX=$CANTATA_INSTALL_PREFIX")
+fi
+cmake -S "$project_dir" -B "$build_dir" -G Ninja "${cmake_args[@]}"
 cmake --build "$build_dir" --parallel "${CANTATA_BUILD_JOBS:-$(nproc)}"
 
 # Headless sanity check: --version exits before any GUI setup.
