@@ -54,8 +54,8 @@ inline QString musicBrainzId(const QString& raw)
 	return {};
 }
 
-// A changed identity must invalidate both the original and scaled artwork.
-// Older name-only downloads remain on disk but are no longer trusted.
+// Historical disk keys, also used to detect identity changes during a download.
+// Portraits now persist under the artist name; keep these for cache migration.
 inline QString legacyImageCacheToken(const QString& raw)
 {
 	bool conflict = false;

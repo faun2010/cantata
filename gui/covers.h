@@ -105,6 +105,7 @@ private:
 	bool downloadViaHttp(Job& job, JobType type);
 	void downloadViaRemote(Job& job);
 	void downloadViaWikipedia(Job& job);
+	void startNextWikipediaRequest();
 	void downloadViaDiscogs(Job& job);
 	void downloadViaDiscogsArtist(Job job);
 	void startDiscogsArtist(Job job);
@@ -141,7 +142,7 @@ private:
 		bool deadlineReached = false;
 		QImage image;
 		QByteArray raw;
-		QString cacheToken;
+		QString identityToken;
 		explicit PortraitSearch(const Job& j) : job(j) {}
 	};
 	QHash<quint64, QSharedPointer<PortraitSearch>> portraits;
@@ -154,6 +155,9 @@ private:
 	NetworkAccessManager* manager;
 	qint64 nextMusicBrainzRequest;
 	qint64 nextDiscogsRequest;
+	qint64 nextWikipediaRequest = 0;
+	QList<Job> wikipediaQueue;
+	QTimer* wikipediaTimer = nullptr;
 	std::atomic_bool stopped;
 };
 
@@ -278,7 +282,7 @@ public:
 	// Get QImage and filename associated with Song request. If this is not found, then the cover
 	// will be downloaded. If more than 5 covers have been requested in an event-loop iteration, then
 	// the cover requests are placed on a queue.
-	Image requestImage(const Song& song, bool urgent = false);
+	Image requestImage(const Song& song, bool urgent = false, bool retryFailed = false);
 	void updateCover(const Song& song, const QImage& img, const QString& file);
 
 #if defined CDDB_FOUND || defined MusicBrainz5_FOUND

@@ -116,7 +116,7 @@ int main(int argc, char** argv)
 		const QString failure = Utils::cacheDir(Covers::constCoverDir, false) + Covers::artistCacheName(song.artist) + ".failed";
 		const bool correctTime = early ? musicBrainzRequests == 0 : musicBrainzRequests == 1;
 		const bool correctResult = missing ? image.isNull() && QFile::exists(failure)
-										   : !image.isNull() && !file.isEmpty() && loaded > 0 && !QFile::exists(failure)
+										   : !image.isNull() && QFileInfo(file).completeBaseName() == Covers::artistCacheName(song.artist) && loaded > 0 && !QFile::exists(failure)
 						&& covers->get(song, 32)->toImage().pixelColor(16, 16).blue() == 180;
 		result = correctTime && correctResult ? 0 : 1;
 		qInfo() << "MODE" << mode << "ELAPSED_MS" << ms << "LOADED" << loaded << "IMAGE" << image.size() << "RESULT" << (result == 0 ? "PASS" : "FAIL");

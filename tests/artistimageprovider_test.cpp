@@ -7,6 +7,14 @@ class ArtistImageProviderTest : public QObject {
 	Q_OBJECT
 
 private Q_SLOTS:
+	void respectsRateLimitRetryAfter()
+	{
+		const qint64 now = QDateTime::fromString("2026-09-23T12:00:00Z", Qt::ISODate).toMSecsSinceEpoch();
+		QCOMPARE(ArtistImageProvider::retryAfterTime("120", now), now + 120000);
+		QCOMPARE(ArtistImageProvider::retryAfterTime("Wed, 23 Sep 2026 12:03:00 GMT", now), now + 180000);
+		for (const QByteArray& value : {QByteArray(), QByteArray("0"), QByteArray("-1"), QByteArray("bad"), QByteArray("9223372036854775807")})
+			QCOMPARE(ArtistImageProvider::retryAfterTime(value, now), now + 60000);
+	}
 	void persistsFailedLookups()
 	{
 		QTemporaryDir dir;

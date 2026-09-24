@@ -24,6 +24,40 @@
         "https://imslp.org/wiki/Category:Taneyev,_Sergey"
       ],
       "zh": "谢尔盖·伊万诺维奇·塔涅耶夫"
+    },
+    {
+      "canonical": "Caspar Joseph Mertz",
+      "imslp": "Category:Mertz,_Johann_Kaspar",
+      "aliases": [
+        "Johann Kaspar Mertz",
+        "Joseph Kaspar Mertz",
+        "Kaspar Joseph Mertz"
+      ],
+      "wikipedia": {
+        "en": "Johann Kaspar Mertz"
+      },
+      "musicbrainz": "5aa2d2d8-85e4-48f0-b619-afc54ccc91b7",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Johann_Kaspar_Mertz",
+        "https://www.wikidata.org/wiki/Q144147"
+      ]
+    },
+    {
+      "canonical": "Juan Crisóstomo de Arriaga",
+      "imslp": "Category:Arriaga,_Juan_Crisóstomo_de",
+      "aliases": [
+        "Juan Crisóstomo Arriaga",
+        "Juan Crisostomo Arriaga",
+        "Juan Crisostomo de Arriaga"
+      ],
+      "wikipedia": {
+        "en": "Juan Crisóstomo Arriaga"
+      },
+      "musicbrainz": "ac840215-bb00-43ba-a110-04a19dee8523",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Juan_Crisóstomo_Arriaga",
+        "https://www.wikidata.org/wiki/Q313669"
+      ]
     }
   ]
 }

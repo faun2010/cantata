@@ -8,6 +8,7 @@
 #define ARTIST_IMAGE_PROVIDER_H
 
 #include <QFile>
+#include <QDateTime>
 #include <QSaveFile>
 #include <QJsonDocument>
 #include <QJsonParseError>
@@ -16,6 +17,7 @@
 #include <QUrl>
 #include <QVariantMap>
 #include <QXmlStreamReader>
+#include <limits>
 
 namespace ArtistImageProvider {
 
@@ -24,6 +26,19 @@ enum RetryState {
 	RetryDeferred,
 	RetryExpired
 };
+
+inline qint64 retryAfterTime(const QByteArray& header, qint64 now)
+{
+	bool ok = false;
+	const qint64 seconds = header.trimmed().toLongLong(&ok);
+	// Bound numeric input before converting to milliseconds.
+	if (ok && seconds >= 0 && seconds <= (std::numeric_limits<qint64>::max() - now) / 1000)
+		return now + qMax<qint64>(60000, seconds * 1000);
+	QByteArray dateHeader = header.trimmed();
+	if (dateHeader.endsWith(" GMT")) dateHeader.replace(dateHeader.size() - 3, 3, "+0000");
+	const auto date = QDateTime::fromString(QString::fromLatin1(dateHeader), Qt::RFC2822Date);
+	return qMax(now + 60000, date.isValid() ? date.toMSecsSinceEpoch() : qint64(0));
+}
 
 // Escape special characters in a Lucene query phrase:
 // backslash and double quote must be escaped with a preceding backslash.

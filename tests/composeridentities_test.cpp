@@ -29,6 +29,20 @@ private slots:
 	}
 	void cleanupTestCase() { ComposerIdentities::setConfigurationFile(QString()); }
 	void init() { write(fixture); }
+	void resolvesMertzAndArriagaPortraitNames()
+	{
+		for (const QString& name : {QString("Caspar Joseph Mertz"), QString("Johann Kaspar Mertz"), QString("Joseph Kaspar Mertz")}) {
+			QCOMPARE(ArtistLookup::wikipediaName(name), QString("Johann Kaspar Mertz"));
+			QCOMPARE(ArtistLookup::musicBrainzId(name), QString("5aa2d2d8-85e4-48f0-b619-afc54ccc91b7"));
+		}
+		QCOMPARE(ArtistLookup::wikipediaName("Juan Crisóstomo de Arriaga"), QString("Juan Crisóstomo Arriaga"));
+		QCOMPARE(ArtistLookup::musicBrainzId("Juan Crisóstomo Arriaga"), QString("ac840215-bb00-43ba-a110-04a19dee8523"));
+		for (const QString& title : {QString("Johann Kaspar Mertz"), QString("Juan Crisóstomo Arriaga")}) {
+			const QJsonObject page{{"ns", 0}, {"title", title},
+			    {"pageprops", QJsonObject{{"wikibase-shortdesc", "composer"}, {"wikibase_item", "Q123"}}}};
+			QCOMPARE(ArtistLookup::portraitEntityId(QJsonObject{{"query", QJsonObject{{"pages", QJsonArray{page}}}}}, title), QString("Q123"));
+		}
+	}
 	void resolvesConfiguredIdentityAndSiteTitle()
 	{
 		QCOMPARE(ComposerTable::biographyName("Sergei Taneyev"), QString("Sergey Taneyev"));

@@ -67,6 +67,7 @@
 GLOBAL_STATIC(Covers, instance)
 
 #include <QDebug>
+#include <QMutexLocker>
 static int debugLevel = 0;
 #define DBUG_CLASS(CLASS) \
 	if (debugLevel) qWarning() << CLASS << QThread::currentThread()->objectName() << __FUNCTION__
@@ -263,7 +264,7 @@ static inline QString albumKey(const Song& s)
 
 static inline QString artistKey(const Song& s)
 {
-	return "{" + ArtistLookup::imageCacheToken(s.albumArtist()) + "}";
+	return "{" + s.albumArtist() + "}";
 }
 
 static inline QString composerKey(const Song& s)
@@ -437,7 +438,8 @@ QString Covers::albumFileName(const Song& song)
 
 QString Covers::artistCacheName(const QString& artist)
 {
-	return ArtistLookup::imageCacheToken(artist);
+	// Keep downloaded portraits and thumbnails compatible with the name-based cache.
+	return encodeName(artist);
 }
 
 QString Covers::fixArtist(const QString& artist)
@@ -750,11 +752,11 @@ void CoverDownloader::startPortrait(Job job)
 	ComposerIdentities::lookup(job.song.albumArtist(), &conflict);
 	job.portraitId = 0;
 	if (conflict) { failed(job); return; }
-	const QString token = Covers::artistCacheName(job.song.albumArtist());
-	for (const auto& active : portraits) if (active->cacheToken == token) return;
+	const QString token = ArtistLookup::imageCacheToken(job.song.albumArtist());
+	for (const auto& active : portraits) if (active->identityToken == token) return;
 	job.portraitId = ++nextPortraitId;
 	auto state = QSharedPointer<PortraitSearch>::create(job);
-	state->cacheToken = token;
+	state->identityToken = token;
 	portraits.insert(job.portraitId, state);
 	// After this interval, publish any usable portrait without waiting for
 	// every provider. Queueing behind a rate limit is not a negative lookup.
@@ -792,7 +794,7 @@ void CoverDownloader::finishPortrait(const Job& job, const QImage& image, const 
 		reply->cancelAndDelete();
 	}
 	if (stopped) return;
-	if (state->cacheToken != Covers::artistCacheName(job.song.albumArtist())) {
+	if (state->identityToken != ArtistLookup::imageCacheToken(job.song.albumArtist())) {
 		startPortrait(state->job);
 		return;
 	}
@@ -835,6 +837,27 @@ void CoverDownloader::downloadViaWikipedia(Job& job)
 {
 	if (!portraitActive(job)) return;
 	job.wikipediaTried = true;
+	wikipediaQueue.append(job);
+	if (!wikipediaTimer) {
+		wikipediaTimer = new QTimer(this);
+		wikipediaTimer->setSingleShot(true);
+		connect(wikipediaTimer, &QTimer::timeout, this, &CoverDownloader::startNextWikipediaRequest);
+	}
+	if (!wikipediaTimer->isActive()) startNextWikipediaRequest();
+}
+
+void CoverDownloader::startNextWikipediaRequest()
+{
+	if (stopped) return;
+	while (!wikipediaQueue.isEmpty() && !portraitActive(wikipediaQueue.first())) wikipediaQueue.removeFirst();
+	if (wikipediaQueue.isEmpty()) return;
+	const qint64 delay = nextWikipediaRequest - QDateTime::currentMSecsSinceEpoch();
+	if (delay > 0) {
+		wikipediaTimer->start(int(qMin<qint64>(delay, 24 * 60 * 60 * 1000)));
+		return;
+	}
+	const Job job = wikipediaQueue.takeFirst();
+	nextWikipediaRequest = QDateTime::currentMSecsSinceEpoch() + 1000;
 	QUrl url(QStringLiteral("https://en.wikipedia.org/w/api.php"));
 	QUrlQuery query;
 	query.addQueryItem("action", "query");
@@ -848,6 +871,7 @@ void CoverDownloader::downloadViaWikipedia(Job& job)
 	NetworkJob* reply = network()->get(url, constRemoteTimeout);
 	jobs.insert(reply, job);
 	connect(reply, &NetworkJob::finished, this, &CoverDownloader::wikipediaCallFinished);
+	if (!wikipediaQueue.isEmpty()) wikipediaTimer->start(1000);
 }
 
 void CoverDownloader::wikipediaCallFinished()
@@ -858,7 +882,21 @@ void CoverDownloader::wikipediaCallFinished()
 	if (it != jobs.end()) {
 		Job job = it.value();
 		jobs.erase(it);
-		job.wikiDataId = reply->ok() ? ArtistLookup::portraitEntityId(QJsonDocument::fromJson(reply->readAll()).object(), job.song.albumArtist()) : QString();
+		if (!reply->ok()) {
+			const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+			if (status == 429 || status == 503) {
+				const qint64 now = QDateTime::currentMSecsSinceEpoch();
+				const QByteArray retryAfter = reply->actualJob() ? reply->actualJob()->rawHeader("Retry-After") : QByteArray();
+				nextWikipediaRequest = qMax(nextWikipediaRequest, ArtistImageProvider::retryAfterTime(retryAfter, now));
+				startNextWikipediaRequest();
+			}
+			// A failed HTTP request is not evidence of a missing page. In
+			// particular, a second title query would worsen a rate limit.
+			failed(job);
+			reply->deleteLater();
+			return;
+		}
+		job.wikiDataId = ArtistLookup::portraitEntityId(QJsonDocument::fromJson(reply->readAll()).object(), job.song.albumArtist());
 		if (!job.wikiDataId.isEmpty()) {
 			downloadViaWikiData(job);
 		}
@@ -1692,13 +1730,20 @@ void CoverLoader::load()
 	}
 }
 
+static QString artistFailurePath(const Song& song, bool create);
+
 Covers::Covers()
 	: downloader(nullptr), locator(nullptr), loader(nullptr)
 {
 	connect(TranslationService::self(), &TranslationService::composerIdentityUpdated, this, [this](const QString& name) {
 		if (!identityRetrySongs.contains(name)) return;
 		const Song song = identityRetrySongs.take(name);
-		// The new identity has its own cache key; keep other artists' retry state.
+		// Retry this pending lookup without clearing other artists' caches.
+		{
+			QMutexLocker lock(&mutex);
+			artistImageFailures.remove(artistKey(song));
+		}
+		QFile::remove(artistFailurePath(song, false));
 		requestImage(song, true);
 	});
 	connect(TranslationService::self(), &TranslationService::composerIdentityRejected, this, [this](const QString& name, const QString&) {
@@ -2352,23 +2397,10 @@ Covers::Image Covers::locateImage(const Song& song)
 					}
 				}
 			}
-			// Check only identity-versioned downloads for artist portraits.
+			// Prefer the original name-based cache, including manually selected portraits.
 			if (song.isArtistImageRequest()) artistOrComposer = artistCacheName(song.albumArtist());
 			QString dir(Utils::cacheDir(constCoverDir, false));
 			if (!dir.isEmpty()) {
-				if (song.isArtistImageRequest()) {
-					const QString legacy = ArtistLookup::legacyImageCacheToken(song.albumArtist());
-					for (int e = 0; legacy != artistOrComposer && constExtensions[e]; ++e) {
-						const QString previous = dir + legacy + constExtensions[e];
-						const QString current = dir + artistOrComposer + constExtensions[e];
-						if (!QFile::exists(current) && QFile::exists(previous)) {
-							const QImage image = loadImage(previous);
-							if (!image.isNull()) {
-								if (!QFile::copy(previous, current)) return Image(image, previous);
-							}
-						}
-					}
-				}
 				for (int e = 0; constExtensions[e]; ++e) {
 					DBUG_CLASS("Covers") << "Checking cache file" << QString(dir + artistOrComposer + constExtensions[e]);
 					if (QFile::exists(dir + artistOrComposer + constExtensions[e])) {
@@ -2376,6 +2408,22 @@ Covers::Image Covers::locateImage(const Song& song)
 						if (!img.isNull()) {
 							DBUG_CLASS("Covers") << "Got cached artist/composer image" << QString(dir + artistOrComposer + constExtensions[e]);
 							return Image(img, dir + artistOrComposer + constExtensions[e]);
+						}
+					}
+				}
+				// Also reuse portraits downloaded by the identity-keyed builds. Copy
+				// only when the name is missing; never overwrite an existing portrait.
+				if (song.isArtistImageRequest()) {
+					const QStringList previousNames{ArtistLookup::imageCacheToken(song.albumArtist()),
+					    ArtistLookup::legacyImageCacheToken(song.albumArtist())};
+					for (const QString& previousName : previousNames) {
+						for (int e = 0; constExtensions[e]; ++e) {
+							const QString previous = dir + previousName + constExtensions[e];
+							if (!QFile::exists(previous)) continue;
+							const QImage image = loadImage(previous);
+							if (image.isNull()) continue;
+							const QString current = dir + artistOrComposer + constExtensions[e];
+							return Image(image, QFile::copy(previous, current) ? current : previous);
 						}
 					}
 				}
@@ -2442,7 +2490,7 @@ bool Covers::Image::validFileName() const
 	return !fileName.isEmpty() && !fileName.startsWith(constCoverInTagPrefix) && constNoCover != fileName;
 }
 
-Covers::Image Covers::requestImage(const Song& song, bool urgent)
+Covers::Image Covers::requestImage(const Song& song, bool urgent, bool retryFailed)
 {
 	if (song.isUnknownAlbum()) {
 		return Image();
@@ -2467,6 +2515,18 @@ Covers::Image Covers::requestImage(const Song& song, bool urgent)
 #endif
 
 	QString key = songKey(song);
+	if (retryFailed && song.isArtistImageRequest()) {
+		{
+			QMutexLocker lock(&mutex);
+			artistImageFailures.remove(artistKey(song));
+		}
+		QFile::remove(artistFailurePath(song, false));
+		for (int size : cacheSizes) {
+			const QString pixmapKey = cacheKey(song, size);
+			const QPixmap* pixmap = cache.object(pixmapKey);
+			if (pixmap && pixmap->width() < 2) cache.remove(pixmapKey);
+		}
+	}
 	if (currentImageRequests.contains(key)) {
 		return Image();
 	}

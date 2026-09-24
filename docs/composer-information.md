@@ -19,6 +19,16 @@ Wikipedia 首先使用标题和重定向 API 获取正式页面及简介。缺�
 Last.fm、MusicBrainz、Discogs 等图片流程。外部姓名查询也使用标准姓名，
 图片缓存和界面仍保留曲库原始姓名。此路径不依赖 MusicBrainz 条目包含图片链接。
 
+艺术家头像原图保存在用户缓存目录的 `covers/<艺术家名>.jpg`（或 `.png`），
+缩略图保存在 `covers-scaled/<尺寸>/<艺术家名>.png`；姓名中的路径字符按平台转义。
+优先复用已有的姓名缓存；没有姓名缓存时，可从过渡版本的 `artist-identity-v4-*`
+缓存复制恢复，不重新下载、不覆盖已有头像。简介、译名或身份资料更新不会使
+已缓存头像失效。成功缓存没有按天过期规则；下载失败状态保留一小时后允许重试。
+在艺术家信息页主动选择“Refresh Artist Information”会立即重试失败的头像，
+已有的有效头像仍从缓存读取。维基百科头像标题查询每秒最多发起一次；遇到
+HTTP 429/503 时按 `Retry-After`（至少一分钟）推迟后续查询，不再立即尝试
+带 `(composer)` 的标题。MusicBrainz 等独立来源仍可提供已核实人物的图片。
+
 验证：
 
 ```sh
@@ -28,6 +38,10 @@ ctest --test-dir build-tests-rebase -R '^(artistlookup|composertable)_test$' --o
 python3 scripts/run-macos-model-probe.py tests/artistlookup_probe.cpp
 # 实际图片下载、解码及缓存验证，使用独立的 CantataArtistImageProbe 配置：
 python3 scripts/run-macos-model-probe.py tests/artistimage_probe.cpp
+# 离线验证姓名缓存、过渡缓存迁移及跨进程复用（独立配置）：
+python3 scripts/run-macos-model-probe.py tests/portraitcache_probe.cpp
+# 只读检查当前用户的姓名头像缓存：
+QT_QPA_PLATFORM=offscreen build-macos/probe-portraitcache_probe --audit
 ```
 
 联网探针不写入用户简介缓存，结果保留在 `build-macos/probe-artistlookup_probe-result.txt`。
